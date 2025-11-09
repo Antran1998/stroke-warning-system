@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Scientist Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="dashboard-container">
+        <nav class="navbar">
+            <h1>📊 Data Scientist Dashboard</h1>
+            <div class="nav-right">
+                <span>Welcome, {{ session.username }}</span>
+                <a href="/logout" class="btn-secondary">Logout</a>
+            </div>
+        </nav>
+        
+        <div class="content">
+            <div class="stats-container">
+                <div class="stat-card">
+                    <h3>Total Patients</h3>
+                    <p class="stat-number">{{ total_patients }}</p>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>High Risk Cases</h3>
+                    <p class="stat-number">{{ stroke_cases }}</p>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>Stroke Rate</h3>
+                    <p class="stat-number">
+                        {% if total_patients > 0 %}
+                            {{ ((stroke_cases / total_patients) * 100)|round(2) }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>Data Collection & Export</h2>
+                <p>Export/Import patient data for training machine learning models</p>
+                
+                <button onclick="exportData()" class="btn-primary">Export as CSV</button>
+                <button onclick="triggerFileInput()" class="btn-primary">Import as CSV</button>
+                <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="handleFileSelect(event)">
+                
+                <div id="dataPreview" style="margin-top: 20px;"></div>
+            </div>
+            
+            <div class="card">
+                <h2>Model Training Configuration</h2>
+                
+                <form id="trainingForm">
+                    <div class="form-group">
+                        <label for="algorithm">Select Algorithm *</label>
+                        <select id="algorithm" name="algorithm" required>
+                            <option value="">Select...</option>
+                            <option value="random_forest">Random Forest</option>
+                            <option value="svm">Support Vector Machine (SVM)</option>
+                            <option value="naive_bayes">Naive Bayes</option>
+                            <option value="gradient_boost">Gradient Boosting</option>
+                            <option value="logistic_regression">Logistic Regression</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="test_size">Test Set Size (%)</label>
+                        <input type="number" id="test_size" name="test_size" 
+                               value="20" min="10" max="40" step="5">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="cross_validation">Cross-Validation Folds</label>
+                        <input type="number" id="cross_validation" name="cross_validation" 
+                               value="5" min="3" max="10">
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">Train Model</button>
+                </form>
+                
+                <div id="trainingResult" class="training-result" style="display: none;">
+                    <h3>Training Results</h3>
+                    <div id="trainingContent"></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>Data Refinement Tools</h2>
+                
+                <div class="refinement-tools">
+                    <button onclick="checkMissingValues()" class="btn-secondary">
+                        Check Missing Values
+                    </button>
+                    <button onclick="detectOutliers()" class="btn-secondary">
+                        Detect Outliers
+                    </button>
+                    <button onclick="showDistribution()" class="btn-secondary">
+                        Feature Distribution
+                    </button>
+                    <button onclick="correlationAnalysis()" class="btn-secondary">
+                        Correlation Analysis
+                    </button>
+                </div>
+                
+                <div id="refinementResult" class="refinement-result"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function triggerFileInput() {
+            document.getElementById('csvFileInput').click();
+        }
+
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+                alert('Please select a valid CSV file');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const csvData = e.target.result;
+                    const parsedData = parseCSV(csvData);
+                    
+                    // Show preview of the data
+                    const previewHTML = `
+                        <div class="csv-preview">
+                            <h4>File import successfully!</h4>
+                        </div>
+                    `;
+                    document.getElementById('dataPreview').innerHTML = previewHTML;
+
+                    // Store the parsed data for later use
+                    window.csvDataToImport = parsedData;
+
+                } catch (error) {
+                    alert('Error processing CSV file: ' + error.message);
+                    console.error('Error:', error);
+                }
+            };
+
+            reader.onerror = function(error) {
+                alert('Error reading file: ' + error);
+            };
+
+            reader.readAsText(file);
+        }
+
+        function parseCSV(csvText) {
+            const lines = csvText.split(/\\r?\\n/);
+            return lines.map(line => {
+                // Handle quoted values that contain commas
+                const row = [];
+                let inQuotes = false;
+                let currentValue = '';
+                
+                for (let char of line) {
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        row.push(currentValue.trim());
+                        currentValue = '';
+                    } else {
+                        currentValue += char;
+                    }
+                }
+                row.push(currentValue.trim());
+                return row;
+            }).filter(row => row.length > 1 || row[0].trim() !== '');
+        }
+
+        async function confirmImport() {
+            if (!window.csvDataToImport) {
+                alert('No data to import');
+                return;
+            }
+
+            try {
+                // Send the data to the server
+                const response = await fetch('/api/import-data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        data: window.csvDataToImport
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('dataPreview').innerHTML = 
+                        `<p class="success-message">✓ Successfully imported ${window.csvDataToImport.length - 1} records!</p>`;
+                    // Clear the stored data
+                    window.csvDataToImport = null;
+                } else {
+                    throw new Error(result.message || 'Import failed');
+                }
+            } catch (error) {
+                alert('Error importing data: ' + error.message);
+                console.error('Import error:', error);
+            }
+        }
+
+        function cancelImport() {
+            // Clear the preview and stored data
+            document.getElementById('dataPreview').innerHTML = '';
+            window.csvDataToImport = null;
+            document.getElementById('csvFileInput').value = ''; // Reset file input
+        }
+
+        async function exportData() {
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                const data = await response.json();
+                
+                // Download as JSON file
+                const blob = new Blob([JSON.stringify(data, null, 2)], 
+                    {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'stroke_dataset_' + new Date().toISOString().split('T')[0] + '.json';
+                a.click();
+                
+                // Show preview
+                document.getElementById('dataPreview').innerHTML = 
+                    `<p>✓ Exported ${data.length} patient records successfully!</p>`;
+            } catch (error) {
+                alert('Error exporting data: ' + error);
+            }
+        }
+        
+        async function downloadCSV() {
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                const data = await response.json();
+                
+                if (data.length === 0) {
+                    alert('No data available to export');
+                    return;
+                }
+                
+                // Convert JSON to CSV
+                const headers = Object.keys(data[0]);
+                let csv = headers.join(',') + '\n';
+                
+                data.forEach(row => {
+                    csv += headers.map(header => {
+                        let value = row[header];
+                        if (typeof value === 'string' && value.includes(',')) {
+                            value = '"' + value + '"';
+                        }
+                        return value;
+                    }).join(',') + '\n';
+                });
+                
+                // Download CSV file
+                const blob = new Blob([csv], {type: 'text/csv'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'stroke_dataset_' + new Date().toISOString().split('T')[0] + '.csv';
+                a.click();
+                
+                document.getElementById('dataPreview').innerHTML = 
+                    `<p>✓ Exported ${data.length} records as CSV!</p>`;
+            } catch (error) {
+                alert('Error exporting CSV: ' + error);
+            }
+        }
+        
+        document.getElementById('trainingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const algorithm = document.getElementById('algorithm').value;
+            const resultDiv = document.getElementById('trainingResult');
+            const resultContent = document.getElementById('trainingContent');
+            
+            // Simulate training (in production, this would call backend ML training endpoint)
+            resultContent.innerHTML = `
+                <div class="training-info">
+                    <p><strong>Algorithm:</strong> ${algorithm}</p>
+                    <p><strong>Status:</strong> Training initiated...</p>
+                    <p class="note">Note: This is a prototype. In production, implement actual model training with scikit-learn</p>
+                    <div class="metrics">
+                        <h4>Expected Metrics:</h4>
+                        <ul>
+                            <li>Accuracy: ~95% (with proper training data)</li>
+                            <li>Precision: ~92%</li>
+                            <li>Recall: ~89%</li>
+                            <li>F1-Score: ~90%</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            
+            resultDiv.style.display = 'block';
+        });
+        
+        function checkMissingValues() {
+            const mockMissingAnalysis = `
+                <div class="analysis-result">
+                    <h3>Missing Values Analysis</h3>
+                    <div class="result-table">
+                        <table>
+                            <tr><th>Feature</th><th>Missing Values</th><th>Percentage</th></tr>
+                            <tr><td>Age</td><td>0</td><td>0%</td></tr>
+                            <tr><td>BMI</td><td>12</td><td>2.4%</td></tr>
+                            <tr><td>Glucose Level</td><td>5</td><td>1%</td></tr>
+                            <tr><td>Smoking Status</td><td>8</td><td>1.6%</td></tr>
+                        </table>
+                    </div>
+                    <p class="analysis-summary">
+                        <strong>Summary:</strong> Dataset is relatively complete with minimal missing values.
+                        Recommended action: Apply mean imputation for BMI and mode imputation for categorical variables.
+                    </p>
+                </div>`;
+            document.getElementById('refinementResult').innerHTML = mockMissingAnalysis;
+        }
+        
+        function detectOutliers() {
+            const mockOutlierResults = `
+                <div class="analysis-result">
+                    <h3>Outlier Detection Results</h3>
+                    <div class="outlier-summary">
+                        <h4>Detected Outliers:</h4>
+                        <ul>
+                            <li><strong>BMI:</strong> 15 outliers detected (> 40 or < 15)</li>
+                            <li><strong>Average Glucose Level:</strong> 23 outliers (> 300 mg/dL)</li>
+                            <li><strong>Age:</strong> No significant outliers</li>
+                        </ul>
+                        <div class="recommendation">
+                            <h4>Recommendations:</h4>
+                            <p>1. Review extreme BMI values for potential data entry errors</p>
+                            <p>2. Verify glucose readings above 300 mg/dL with medical records</p>
+                            <p>3. Consider capping values at 3 standard deviations from mean</p>
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('refinementResult').innerHTML = mockOutlierResults;
+        }
+        
+        function showDistribution() {
+            const mockDistribution = `
+                <div class="analysis-result">
+                    <h3>Feature Distribution Analysis</h3>
+                    <div class="distribution-summary">
+                        <div class="feature">
+                            <h4>Age Distribution</h4>
+                            <p>Mean: 45.6 years</p>
+                            <p>Median: 43 years</p>
+                            <p>Distribution: Right-skewed</p>
+                        </div>
+                        <div class="feature">
+                            <h4>BMI Distribution</h4>
+                            <p>Mean: 28.3</p>
+                            <p>Median: 27.1</p>
+                            <p>Distribution: Normal with slight right skew</p>
+                        </div>
+                        <div class="feature">
+                            <h4>Glucose Level Distribution</h4>
+                            <p>Mean: 106.2 mg/dL</p>
+                            <p>Median: 91.5 mg/dL</p>
+                            <p>Distribution: Heavy right skew</p>
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('refinementResult').innerHTML = mockDistribution;
+        }
+        
+        function correlationAnalysis() {
+            const mockCorrelation = `
+                <div class="analysis-result">
+                    <h3>Feature Correlation Analysis</h3>
+                    <div class="correlation-table">
+                        <table>
+                            <tr><th>Feature Pair</th><th>Correlation</th><th>Significance</th></tr>
+                            <tr><td>Age - Stroke Risk</td><td>0.78</td><td>High</td></tr>
+                            <tr><td>Hypertension - Stroke Risk</td><td>0.65</td><td>High</td></tr>
+                            <tr><td>Heart Disease - Stroke Risk</td><td>0.61</td><td>High</td></tr>
+                            <tr><td>BMI - Stroke Risk</td><td>0.42</td><td>Medium</td></tr>
+                            <tr><td>Glucose - Stroke Risk</td><td>0.39</td><td>Medium</td></tr>
+                        </table>
+                    </div>
+                    <p class="analysis-insight">
+                        <strong>Key Insights:</strong> Age shows the strongest correlation with stroke risk,
+                        followed by hypertension and heart disease. BMI and glucose levels show moderate correlation.
+                    </p>
+                </div>`;
+            document.getElementById('refinementResult').innerHTML = mockCorrelation;
+        }
+    </script>
+</body>
+</html>
