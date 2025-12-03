@@ -1,5 +1,5 @@
 """
-Database Models for Hospital Stroke Prediction System
+Database Models for Stroke Warning System
 """
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
@@ -35,8 +35,8 @@ class Patient(db.Model):
     avg_glucose_level = db.Column(db.Float, nullable=False)
     bmi = db.Column(db.Float, nullable=False)
     smoking_status = db.Column(db.String(50), nullable=False)
-    stroke_prediction = db.Column(db.String(50))  # High Risk, Low Risk
-    stroke_probability = db.Column(db.Float)
+    stroke_prediction = db.Column(db.String(50))  # High Risk or Low Risk
+    validated = db.Column(db.Boolean, default=False)
     created_by = db.Column(db.String(80), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -59,7 +59,7 @@ class Patient(db.Model):
             'bmi': self.bmi,
             'smoking_status': self.smoking_status,
             'stroke_prediction': self.stroke_prediction,
-            'stroke_probability': self.stroke_probability,
+            
             'created_at': self.created_at.isoformat()
         }
 
@@ -79,7 +79,7 @@ class Patient(db.Model):
             'bmi': self.bmi,
             'smoking_status': self.smoking_status,
             'stroke_prediction': self.stroke_prediction,
-            'stroke_probability': self.stroke_probability,
+            
             'created_by': self.created_by,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S')
         }

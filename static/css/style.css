@@ -100,6 +100,29 @@ body {
     text-align: center;
 }
 
+/* Risk badges styling */
+.badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    text-align: center;
+    color: white;
+}
+
+.badge-high-risk {
+    background-color: #ff4444;
+}
+
+.badge-low-risk {
+    background-color: #00C851;
+}
+
+.badge-pending {
+    background-color: #848484;
+}
+}
+
 /* Data Refinement Tools Styles */
 .analysis-result {
     background: white;

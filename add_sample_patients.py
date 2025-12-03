@@ -22,8 +22,8 @@ def add_sample_patients():
             'bmi': 28.5,
             'smoking_status': 'formerly smoked',
             'stroke_prediction': 'High Risk',
-            'stroke_probability': 0.82,
             'created_by': 'doctor1',
+            'validated': True,
             'created_at': datetime.utcnow() - timedelta(days=5)
         },
         {
@@ -39,8 +39,8 @@ def add_sample_patients():
             'bmi': 23.1,
             'smoking_status': 'never smoked',
             'stroke_prediction': 'Low Risk',
-            'stroke_probability': 0.15,
             'created_by': 'doctor1',
+            'validated': True,
             'created_at': datetime.utcnow() - timedelta(days=3)
         },
         {
@@ -55,9 +55,9 @@ def add_sample_patients():
             'avg_glucose_level': 171.23,
             'bmi': 32.1,
             'smoking_status': 'smokes',
-            'stroke_prediction': 'Medium Risk',
-            'stroke_probability': 0.45,
+            'stroke_prediction': 'High Risk',
             'created_by': 'doctor1',
+            'validated': True,
             'created_at': datetime.utcnow() - timedelta(days=2)
         },
         {
@@ -73,8 +73,8 @@ def add_sample_patients():
             'bmi': 21.8,
             'smoking_status': 'never smoked',
             'stroke_prediction': 'Low Risk',
-            'stroke_probability': 0.08,
             'created_by': 'doctor1',
+            'validated': True,
             'created_at': datetime.utcnow() - timedelta(days=1)
         },
         {
@@ -90,8 +90,8 @@ def add_sample_patients():
             'bmi': 29.9,
             'smoking_status': 'formerly smoked',
             'stroke_prediction': 'High Risk',
-            'stroke_probability': 0.91,
             'created_by': 'doctor1',
+            'validated': True,
             'created_at': datetime.utcnow()
         }
     ]

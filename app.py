@@ -1,5 +1,5 @@
 """
-Main Flask Application for Hospital Stroke Prediction System
+Main Flask Application for Stroke Warning System
 """
 import json
 import csv
@@ -106,8 +106,8 @@ def create_app(config_name='development'):
                         'message': f'Missing required field: {field}'
                     }), 400
 
-            # Make prediction using the more sophisticated predict_stroke function
-            prediction, probability = predict_stroke(data)
+            # Make prediction using the rule-based predict_stroke function
+            prediction = predict_stroke(data)
             
             # Create new patient
             new_patient = Patient(
@@ -123,7 +123,6 @@ def create_app(config_name='development'):
                 bmi=data['bmi'],
                 smoking_status=data['smoking_status'],
                 stroke_prediction=prediction,
-                stroke_probability=probability,
                 created_by=session['username']
             )
             
@@ -133,8 +132,7 @@ def create_app(config_name='development'):
             return jsonify({
                 'success': True,
                 'message': 'Patient added successfully',
-                'prediction': prediction,
-                'probability': probability
+                'prediction': prediction
             })
             
         except Exception as e:
@@ -168,6 +166,73 @@ def create_app(config_name='development'):
                              total_patients=total_patients,
                              stroke_cases=stroke_cases,
                              model_metrics=model_metrics)
+
+    @app.route('/doctor/update_patient', methods=['POST'])
+    def update_patient():
+        """Update patient details from doctor dashboard editable panel.
+        Expects JSON body with at least 'id' and any updatable fields.
+        Recalculates stroke prediction and probability after update.
+        """
+        if 'username' not in session or session.get('role') != 'doctor':
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        try:
+            data = request.get_json() or {}
+            if 'id' not in data:
+                return jsonify({'success': False, 'message': 'Missing patient id'}), 400
+
+            patient_id = int(data.get('id'))
+            patient = Patient.query.get(patient_id)
+            if not patient:
+                return jsonify({'success': False, 'message': 'Patient not found'}), 404
+
+            # Update allowed fields only
+            updatable = [
+                'name', 'age', 'gender', 'hypertension', 'heart_disease',
+                'ever_married', 'work_type', 'residence_type', 'avg_glucose_level',
+                'bmi', 'smoking_status'
+            ]
+
+            for key in updatable:
+                if key in data:
+                    val = data.get(key)
+                    # convert numeric fields
+                    if key in ('age', 'hypertension', 'heart_disease'):
+                        try:
+                            setattr(patient, key, int(val) if val is not None and val != '' else None)
+                        except (ValueError, TypeError):
+                            return jsonify({'success': False, 'message': f'Invalid value for {key}'}), 400
+                    elif key in ('avg_glucose_level', 'bmi'):
+                        try:
+                            setattr(patient, key, float(val) if val is not None and val != '' else None)
+                        except (ValueError, TypeError):
+                            return jsonify({'success': False, 'message': f'Invalid value for {key}'}), 400
+                    else:
+                        setattr(patient, key, val)
+
+            # If stroke_prediction was provided, use that instead of recalculating
+            if 'stroke_prediction' not in data:
+                # No manual prediction provided, recalculate using the helper
+                patient_data = {
+                    'age': patient.age or 0,
+                    'hypertension': int(patient.hypertension) if patient.hypertension is not None else 0,
+                    'heart_disease': int(patient.heart_disease) if patient.heart_disease is not None else 0,
+                    'avg_glucose_level': float(patient.avg_glucose_level) if patient.avg_glucose_level is not None else 0.0,
+                    'bmi': float(patient.bmi) if patient.bmi is not None else 0.0,
+                    'smoking_status': patient.smoking_status or 'Unknown'
+                }
+                prediction = predict_stroke(patient_data)
+                patient.stroke_prediction = prediction
+            # else stroke_prediction was already set by the form data above
+            patient.updated_at = datetime.utcnow() if hasattr(patient, 'updated_at') else patient.created_at
+
+            db.session.commit()
+
+            return jsonify({'success': True, 'message': 'Patient updated', 'prediction': prediction})
+
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': str(e)}), 500
 
     @app.route('/api/analytics/dashboard-data')
     def get_dashboard_data():
@@ -203,11 +268,13 @@ def create_app(config_name='development'):
             # Prediction trends by month
             month = patient.created_at.strftime('%Y-%m')
             if month not in data['prediction_trends']:
-                data['prediction_trends'][month] = {'High Risk': 0, 'Medium Risk': 0, 'Low Risk': 0}
-            if patient.stroke_prediction:
+                data['prediction_trends'][month] = {'High Risk': 0, 'Low Risk': 0}
+            if patient.stroke_prediction in data['prediction_trends'][month]:
                 data['prediction_trends'][month][patient.stroke_prediction] += 1
         
         return jsonify(data)
+
+
 
     @app.route('/api/export-data', methods=['POST'])
     def export_data():
@@ -257,9 +324,10 @@ def create_app(config_name='development'):
 
     def predict_stroke(patient_data):
         """
-        Predict stroke risk based on patient data
-        Uses rule-based system for prototype (replace with trained ML model)
+        Predict stroke risk based on patient data using a rule-based system.
         """
+
+        # Rule-based system as fallback
         risk_score = 0
         
         # Age factor
@@ -294,18 +362,11 @@ def create_app(config_name='development'):
         elif patient_data['smoking_status'] == 'formerly smoked':
             risk_score += 8
         
-        # Convert to probability
+        # Convert to probability internally (not stored)
         probability = min(risk_score / 100, 0.95)
-        
-        # Determine risk level
-        if probability > 0.5:
-            prediction = 'High Risk'
-        elif probability > 0.3:
-            prediction = 'Medium Risk'
-        else:
-            prediction = 'Low Risk'
-        
-        return prediction, probability
+
+        # Determine risk level: only High Risk or Low Risk (no Medium)
+        return 'High Risk' if probability > 0.5 else 'Low Risk'
     
     return app
 
