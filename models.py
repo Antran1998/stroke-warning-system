@@ -35,13 +35,18 @@ class Patient(db.Model):
     avg_glucose_level = db.Column(db.Float, nullable=False)
     bmi = db.Column(db.Float, nullable=False)
     smoking_status = db.Column(db.String(50), nullable=False)
-    stroke_prediction = db.Column(db.String(50))  # High Risk or Low Risk
+    stroke_prediction = db.Column(db.Integer)  # 1 = High Risk, 0 = Low Risk
     validated = db.Column(db.Boolean, default=False)
     created_by = db.Column(db.String(80), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f'<Patient {self.name} (ID: {self.id})>'
+
+    def _stroke_str(self):
+        if self.stroke_prediction is None:
+            return None
+        return 'High Risk' if int(self.stroke_prediction) == 1 else 'Low Risk'
 
     def tojson(self):
         """Convert patient record to JSON-safe dictionary"""
@@ -58,7 +63,7 @@ class Patient(db.Model):
             'avg_glucose_level': self.avg_glucose_level,
             'bmi': self.bmi,
             'smoking_status': self.smoking_status,
-            'stroke_prediction': self.stroke_prediction,
+            'stroke_prediction': self._stroke_str(),
             
             'created_at': self.created_at.isoformat()
         }
@@ -78,7 +83,7 @@ class Patient(db.Model):
             'avg_glucose_level': self.avg_glucose_level,
             'bmi': self.bmi,
             'smoking_status': self.smoking_status,
-            'stroke_prediction': self.stroke_prediction,
+            'stroke_prediction': self._stroke_str(),
             
             'created_by': self.created_by,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S')

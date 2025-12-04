@@ -101,7 +101,7 @@ def create_app(config_name='development'):
         
         # Stats
         total_patients = Patient.query.count()
-        high_risk_count = Patient.query.filter(Patient.stroke_prediction == 'High Risk').count()
+        high_risk_count = Patient.query.filter(Patient.stroke_prediction == 1).count()
         pending_count = Patient.query.filter(Patient.stroke_prediction == None).count()
         
         return render_template(
@@ -138,6 +138,7 @@ def create_app(config_name='development'):
 
             # Make prediction using the rule-based predict_stroke function
             prediction = predict_stroke(data)
+            prediction_int = 1 if prediction == 'High Risk' else 0
             
             # Create new patient
             new_patient = Patient(
@@ -152,7 +153,7 @@ def create_app(config_name='development'):
                 avg_glucose_level=data['avg_glucose_level'],
                 bmi=data['bmi'],
                 smoking_status=data['smoking_status'],
-                stroke_prediction=prediction,
+                stroke_prediction=prediction_int,
                 created_by=session['username']
             )
             
@@ -182,7 +183,7 @@ def create_app(config_name='development'):
         
         total_patients = Patient.query.count()
         stroke_cases = Patient.query.filter(
-            Patient.stroke_prediction == 'High Risk'
+            Patient.stroke_prediction == 1
         ).count()
         
         # Get model metrics if available
@@ -252,7 +253,7 @@ def create_app(config_name='development'):
                     'smoking_status': patient.smoking_status or 'Unknown'
                 }
                 prediction = predict_stroke(patient_data)
-                patient.stroke_prediction = prediction
+                patient.stroke_prediction = 1 if prediction == 'High Risk' else 0
             # else stroke_prediction was already set by the form data above
             patient.updated_at = datetime.utcnow() if hasattr(patient, 'updated_at') else patient.created_at
 
@@ -299,8 +300,8 @@ def create_app(config_name='development'):
             month = patient.created_at.strftime('%Y-%m')
             if month not in data['prediction_trends']:
                 data['prediction_trends'][month] = {'High Risk': 0, 'Low Risk': 0}
-            if patient.stroke_prediction in data['prediction_trends'][month]:
-                data['prediction_trends'][month][patient.stroke_prediction] += 1
+            label = 'High Risk' if patient.stroke_prediction == 1 else 'Low Risk'
+            data['prediction_trends'][month][label] += 1
         
         return jsonify(data)
 
@@ -323,7 +324,15 @@ def create_app(config_name='development'):
             if filters.get('endDate'):
                 query = query.filter(Patient.created_at <= filters['endDate'])
             if filters.get('riskLevel'):
-                query = query.filter(Patient.stroke_prediction.in_(filters['riskLevel']))
+                # accept 0/1 or labels
+                risk_levels = filters['riskLevel']
+                mapped = []
+                for r in risk_levels:
+                    if isinstance(r, int):
+                        mapped.append(r)
+                    elif isinstance(r, str):
+                        mapped.append(1 if r == 'High Risk' else 0)
+                query = query.filter(Patient.stroke_prediction.in_(mapped))
             
             patients = query.all()
             data = [patient.to_dict() for patient in patients]
