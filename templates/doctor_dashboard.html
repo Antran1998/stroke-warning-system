@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,21 +16,66 @@
             color: white;
             min-width: 100px;
         }
+
         .badge-high-risk {
             background-color: #ff4444;
         }
+
         .badge-low-risk {
             background-color: #00C851;
         }
+
         .badge-pending {
             background-color: #848484;
         }
+
         td.prediction-cell {
             text-align: center;
             padding: 8px;
         }
+
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 12px;
+        }
+
+        .pagination .pages {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .pagination a,
+        .pagination span {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #333;
+        }
+
+        .pagination a.disabled {
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        .pagination .info {
+            color: #666;
+        }
+
+        /* New styles for numeric prediction badges */
+        .badge-pred-1 {
+            background-color: #ff4444;
+        }
+
+        .badge-pred-0 {
+            background-color: #00C851;
+        }
     </style>
 </head>
+
 <body>
     <div class="dashboard-container">
         <!-- Patient Detail Panel -->
@@ -37,9 +83,12 @@
             <div class="panel-header">
                 <h2>Patient Details</h2>
                 <div class="panel-actions">
-                    <button id="editPatientBtn" class="btn-secondary" onclick="enterEditMode()" style="display:none;margin-right:8px;">Edit</button>
-                    <button id="savePatientBtn" class="btn-primary" onclick="savePatientEdits()" style="display:none;margin-right:8px;">Save</button>
-                    <button id="cancelEditBtn" class="btn-secondary" onclick="cancelEdit()" style="display:none;margin-right:8px;">Cancel</button>
+                    <button id="editPatientBtn" class="btn-secondary" onclick="enterEditMode()" style="display:none;margin-right:8px;">Edit
+                    </button>
+                    <button id="savePatientBtn" class="btn-primary" onclick="savePatientEdits()" style="display:none;margin-right:8px;">Save
+                    </button>
+                    <button id="cancelEditBtn" class="btn-secondary" onclick="cancelEdit()" style="display:none;margin-right:8px;">Cancel
+                    </button>
                     <button class="close-panel" onclick="closeDetailPanel()">&times;</button>
                 </div>
             </div>
@@ -60,17 +109,17 @@
             <div class="stats-container">
                 <div class="stat-card">
                     <h3>Total Patients</h3>
-                    <p class="stat-number">{{ patients|length }}</p>
+                    <p class="stat-number">{{ total_patients if total_patients is defined else patients|length }}</p>
                 </div>
 
                 <div class="stat-card">
                     <h3>High Risk Cases</h3>
-                    <p class="stat-number">{{ patients|selectattr('stroke_prediction', 'equalto', 'High Risk')|list|length }}</p>
+                    <p class="stat-number">{{ high_risk_count if high_risk_count is defined else (patients|selectattr('stroke_prediction', 'equalto', 'High Risk')|list|length) }}</p>
                 </div>
 
                 <div class="stat-card">
                     <h3>Pending Analysis</h3>
-                    <p class="stat-number">{{ patients|selectattr('stroke_prediction', 'none')|list|length }}</p>
+                    <p class="stat-number">{{ pending_count if pending_count is defined else (patients|selectattr('stroke_prediction', 'none')|list|length) }}</p>
                 </div>
             </div>
 
@@ -175,6 +224,20 @@
             <div class="card">
                 <h2>Patient Records</h2>
                 <div class="table-container">
+                    <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom:8px;">
+                        <div>
+                            <label>Rows per page:</label>
+                            <select id="perPageSelect" onchange="changePerPage(this.value)">
+                                {% set current_per_page = per_page if per_page is defined else 10 %}
+                                {% for opt in [10,20,50,100] %}
+                                    <option value="{{ opt }}" {% if opt == current_per_page %}selected{% endif %}>{{ opt }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% if pagination is defined %}
+                        <div class="info">Showing {{ patients|length }} of {{ pagination.total }} records</div>
+                        {% endif %}
+                    </div>
                     <table>
                         <thead>
                             <tr>
@@ -202,7 +265,12 @@
                                 <td>{{ patient.avg_glucose_level }}</td>
                                 <td>{{ patient.bmi }}</td>
                                 <td class="prediction-cell">
-                                    {% if patient.stroke_prediction %}
+                                    {# Highlight numeric predictions: red for 1, green for 0. Fallback to text badges if not numeric #}
+                                    {% if patient.stroke_prediction is not none and (patient.stroke_prediction == 1 or patient.stroke_prediction == 0 or patient.stroke_prediction in ['1','0']) %}
+                                        {% set pred = patient.stroke_prediction %}
+                                        {% set pred_num = pred if pred in [0,1] else (1 if pred == '1' else 0) %}
+                                        <span class="badge {{ 'badge-pred-1' if pred_num == 1 else 'badge-pred-0' }}">{{ pred_num }}</span>
+                                    {% elif patient.stroke_prediction %}
                                         <span class="badge badge-{{ patient.stroke_prediction.lower().replace(' ', '-') }}">
                                             {{ patient.stroke_prediction }}
                                         </span>
@@ -221,6 +289,21 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    <div class="pagination">
+                        {% if pagination is defined %}
+                        <div class="pages">
+                            {% set page = pagination.page %}
+                            {% set pages = pagination.pages %}
+                            {% set prev_page = page - 1 %}
+                            {% set next_page = page + 1 %}
+                            <a class="{% if not pagination.has_prev %}disabled{% endif %}" href="{{ url_for('doctor_dashboard', page=prev_page, per_page=current_per_page) }}">Prev</a>
+                            <span>Page {{ page }} of {{ pages }}</span>
+                            <a class="{% if not pagination.has_next %}disabled{% endif %}" href="{{ url_for('doctor_dashboard', page=next_page, per_page=current_per_page) }}">Next</a>
+                        </div>
+                        {% else %}
+                        <span class="info">Showing {{ patients|length }} records</span>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -229,6 +312,14 @@
     <script>
         let currentPatient = null;
         let originalDetailsHTML = '';
+
+        function changePerPage(val) {
+            const perPage = parseInt(val) || 10;
+            const url = new URL(window.location.href);
+            url.searchParams.set('per_page', perPage);
+            url.searchParams.set('page', 1);
+            window.location.href = url.toString();
+        }
 
         document.getElementById('patientForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -311,8 +402,8 @@
             const detailsContainer = document.getElementById('patientDetails');
 
             // Format the patient details HTML
-            const riskClass = patient.stroke_prediction ? 
-                patient.stroke_prediction.toLowerCase().replace(' ', '-') : 
+            const riskClass = patient.stroke_prediction ?
+                patient.stroke_prediction.toLowerCase().replace(' ', '-') :
                 'pending';
 
             const detailsHTML = `
@@ -567,4 +658,5 @@
         }
     </script>
 </body>
+
 </html>

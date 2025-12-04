@@ -81,8 +81,38 @@ def create_app(config_name='development'):
         if 'username' not in session or session['role'] != 'doctor':
             return redirect(url_for('index'))
         
-        patients = Patient.query.order_by(Patient.created_at.desc()).all()
-        return render_template('doctor_dashboard.html', patients=patients)
+        # Pagination params
+        try:
+            page = int(request.args.get('page', 1))
+        except ValueError:
+            page = 1
+        try:
+            per_page = int(request.args.get('per_page', 10))
+        except ValueError:
+            per_page = 10
+        if per_page <= 0:
+            per_page = 10
+        if page <= 0:
+            page = 1
+        
+        base_query = Patient.query.order_by(Patient.created_at.desc())
+        pagination = base_query.paginate(page=page, per_page=per_page, error_out=False)
+        patients = pagination.items
+        
+        # Stats
+        total_patients = Patient.query.count()
+        high_risk_count = Patient.query.filter(Patient.stroke_prediction == 'High Risk').count()
+        pending_count = Patient.query.filter(Patient.stroke_prediction == None).count()
+        
+        return render_template(
+            'doctor_dashboard.html', 
+            patients=patients,
+            total_patients=total_patients,
+            high_risk_count=high_risk_count,
+            pending_count=pending_count,
+            pagination=pagination,
+            per_page=per_page
+        )
 
     @app.route('/doctor/add_patient', methods=['POST'])
     def add_patient():
