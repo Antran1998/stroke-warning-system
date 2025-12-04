@@ -7,6 +7,7 @@ class Config:
     """Base configuration"""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production-2024'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    CLEAR_DB = 1
 
 class DevelopmentConfig(Config):
     """Development configuration"""
