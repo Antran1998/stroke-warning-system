@@ -64,15 +64,6 @@
         .pagination .info {
             color: #666;
         }
-
-        /* New styles for numeric prediction badges */
-        .badge-pred-1 {
-            background-color: #ff4444;
-        }
-
-        .badge-pred-0 {
-            background-color: #00C851;
-        }
     </style>
 </head>
 
@@ -265,19 +256,16 @@
                                 <td>{{ patient.avg_glucose_level }}</td>
                                 <td>{{ patient.bmi }}</td>
                                 <td class="prediction-cell">
-                                    {# Highlight numeric predictions: red for 1, green for 0. Fallback to text badges if not numeric #}
-                                    {% if patient.stroke_prediction is not none and (patient.stroke_prediction == 1 or patient.stroke_prediction == 0 or patient.stroke_prediction in ['1','0']) %}
-                                        {% set pred = patient.stroke_prediction %}
-                                        {% set pred_num = pred if pred in [0,1] else (1 if pred == '1' else 0) %}
-                                        <span class="badge {{ 'badge-pred-1' if pred_num == 1 else 'badge-pred-0' }}">{{ pred_num }}</span>
-                                    {% elif patient.stroke_prediction %}
-                                        <span class="badge badge-{{ patient.stroke_prediction.lower().replace(' ', '-') }}">
-                                            {{ patient.stroke_prediction }}
-                                        </span>
+                                    {% if patient.stroke_prediction is not none %}
+                                        {% if patient.stroke_prediction == 1 or patient.stroke_prediction == '1' %}
+                                            <span class="badge badge-high-risk">High Risk</span>
+                                        {% elif patient.stroke_prediction == 0 or patient.stroke_prediction == '0' %}
+                                            <span class="badge badge-low-risk">Low Risk</span>
+                                        {% else %}
+                                            <span class="badge badge-pending">Pending</span>
+                                        {% endif %}
                                     {% else %}
-                                        <span class="badge badge-pending">
-                                            Pending
-                                        </span>
+                                        <span class="badge badge-pending">Pending</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ patient.created_at.strftime('%Y-%m-d') }}</td>
@@ -323,7 +311,7 @@
 
         document.getElementById('patientForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            debugger;
+            
             const formData = new FormData(e.target);
             const data = Object.fromEntries(formData.entries());
 
@@ -335,7 +323,7 @@
             data.bmi = parseFloat(data.bmi);
 
             const resultDiv = document.getElementById('predictionResult');
-            resultDiv.innerHTML = '<p>Processing...</p>';
+            resultDiv.innerHTML = '<p style="color: #667eea;">⏳ Processing...</p>';
 
             // Validate all required fields are present
             const requiredFields = [
@@ -345,14 +333,42 @@
             ];
 
             for (const field of requiredFields) {
-                if (!data[field]) {
+                if (!data[field] && data[field] !== 0) {
                     resultDiv.innerHTML = `
-                        <div class="alert alert-error">
-                            <p>Error: ${field} is required</p>
+                        <div class="alert alert-error" style="background: #fee; color: #c33; padding: 15px; border-radius: 5px;">
+                            <p><strong>Error:</strong> ${field} is required</p>
                         </div>
                     `;
                     return;
                 }
+            }
+
+            // Client-side validation
+            if (isNaN(data.age) || data.age < 1 || data.age > 120) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-error" style="background: #fee; color: #c33; padding: 15px; border-radius: 5px;">
+                        <p><strong>Error:</strong> Age must be between 1 and 120</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (isNaN(data.avg_glucose_level) || data.avg_glucose_level < 0) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-error" style="background: #fee; color: #c33; padding: 15px; border-radius: 5px;">
+                        <p><strong>Error:</strong> Average glucose level must be a positive number</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (isNaN(data.bmi) || data.bmi < 0) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-error" style="background: #fee; color: #c33; padding: 15px; border-radius: 5px;">
+                        <p><strong>Error:</strong> BMI must be a positive number</p>
+                    </div>
+                `;
+                return;
             }
 
             try {
@@ -368,9 +384,10 @@
 
                 if (result.success) {
                     resultDiv.innerHTML = `
-                        <div class="alert alert-success">
-                            <h3>Patient Added Successfully!</h3>
-                            <p><strong>Stroke Risk Prediction:</strong> ${result.prediction}</p>
+                        <div class="alert alert-success" style="background: #efe; color: #2a2; padding: 15px; border-radius: 5px;">
+                            <h3 style="margin-bottom: 10px;">✓ Patient Added Successfully!</h3>
+                            <p><strong>Patient ID:</strong> ${result.patient_id}</p>
+                            <p><strong>Stroke Risk Prediction:</strong> <span class="badge badge-${result.prediction === 'High Risk' ? 'high-risk' : 'low-risk'}">${result.prediction}</span></p>
                         </div>
                     `;
 
@@ -383,15 +400,15 @@
                     }, 2000);
                 } else {
                     resultDiv.innerHTML = `
-                        <div class="alert alert-error">
-                            <p>Error: ${result.message}</p>
+                        <div class="alert alert-error" style="background: #fee; color: #c33; padding: 15px; border-radius: 5px;">
+                            <p><strong>Error:</strong> ${result.message}</p>
                         </div>
                     `;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `
-                    <div class="alert alert-error">
-                        <p>Error: ${error.message}</p>
+                    <div class="alert alert-error" style="background: #fee; color: #c33; padding: 15px; border-radius: 5px;">
+                        <p><strong>Error:</strong> ${error.message}</p>
                     </div>
                 `;
             }
@@ -401,10 +418,18 @@
             const panel = document.getElementById('patientDetailPanel');
             const detailsContainer = document.getElementById('patientDetails');
 
-            // Format the patient details HTML
-            const riskClass = patient.stroke_prediction ?
-                patient.stroke_prediction.toLowerCase().replace(' ', '-') :
-                'pending';
+            // Format the patient details HTML - convert numeric prediction to text
+            let predictionText = 'Pending';
+            let riskClass = 'pending';
+            if (patient.stroke_prediction !== null && patient.stroke_prediction !== undefined) {
+                if (patient.stroke_prediction === 1 || patient.stroke_prediction === '1') {
+                    predictionText = 'High Risk';
+                    riskClass = 'high-risk';
+                } else if (patient.stroke_prediction === 0 || patient.stroke_prediction === '0') {
+                    predictionText = 'Low Risk';
+                    riskClass = 'low-risk';
+                }
+            }
 
             const detailsHTML = `
                 <div class="detail-section">
@@ -470,18 +495,15 @@
                             <label>Registration Date</label>
                             <span>${new Date(patient.created_at).toLocaleDateString()}</span>
                         </div>
-                        <div class="detail-item">
-                            <label>Stroke Risk</label>
-                            <span class="badge badge-${riskClass}">${patient.stroke_prediction || 'Pending'}</span>
-                        </div>
                     </div>
                 </div>
 
-                ${patient.stroke_prediction ? `
-                    <div class="risk-indicator ${riskClass}">
-                        <h3>${patient.stroke_prediction}</h3>
+                <div class="detail-section">
+                    <h3>Stroke Risk Assessment</h3>
+                    <div style="text-align: center; padding: 20px;">
+                        <span class="badge badge-${riskClass}" style="font-size: 18px; padding: 12px 24px; min-width: 150px;">${predictionText}</span>
                     </div>
-                ` : ''}
+                </div>
             `;
 
             detailsContainer.innerHTML = detailsHTML;
@@ -593,12 +615,18 @@
                                     <option value="Rural" ${currentPatient.residence_type== 'Rural'? 'selected':''}>Rural</option>
                                 </select>
                             </div>
-                            <div class="detail-item">
-                                <label>Stroke Risk</label>
-                                <select name="stroke_prediction" required>
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Stroke Risk Assessment</h3>
+                        <div class="detail-grid">
+                            <div class="detail-item" style="grid-column: 1 / -1;">
+                                <label>Stroke Risk Prediction</label>
+                                <select name="stroke_prediction" required style="width: 100%;">
                                     <option value="">Select Risk Level</option>
-                                    <option value="High Risk" ${currentPatient.stroke_prediction== 'High Risk'? 'selected':''}>High Risk</option>
-                                    <option value="Low Risk" ${currentPatient.stroke_prediction== 'Low Risk'? 'selected':''}>Low Risk</option>
+                                    <option value="1" ${currentPatient.stroke_prediction==1 || currentPatient.stroke_prediction=='1'? 'selected':''}>High Risk</option>
+                                    <option value="0" ${currentPatient.stroke_prediction==0 || currentPatient.stroke_prediction=='0'? 'selected':''}>Low Risk</option>
                                 </select>
                             </div>
                         </div>
@@ -621,13 +649,48 @@
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
 
+            // Validate required fields
+            if (!data.name || !data.age || !data.avg_glucose_level || !data.bmi) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
             // convert numeric types
             data.id = parseInt(data.id);
             data.age = data.age ? parseInt(data.age) : null;
-            data.hypertension = data.hypertension ? parseInt(data.hypertension) : 0;
-            data.heart_disease = data.heart_disease ? parseInt(data.heart_disease) : 0;
+            data.hypertension = data.hypertension !== undefined ? parseInt(data.hypertension) : 0;
+            data.heart_disease = data.heart_disease !== undefined ? parseInt(data.heart_disease) : 0;
             data.avg_glucose_level = data.avg_glucose_level ? parseFloat(data.avg_glucose_level) : null;
             data.bmi = data.bmi ? parseFloat(data.bmi) : null;
+            
+            // Handle stroke_prediction (may be empty string if "Select Risk Level" is chosen)
+            if (data.stroke_prediction !== undefined && data.stroke_prediction !== '') {
+                data.stroke_prediction = parseInt(data.stroke_prediction);
+            } else {
+                delete data.stroke_prediction; // Let backend recalculate
+            }
+
+            // Validate values
+            if (data.age < 1 || data.age > 120) {
+                alert('Age must be between 1 and 120');
+                return;
+            }
+
+            if (data.avg_glucose_level < 0) {
+                alert('Average glucose level must be positive');
+                return;
+            }
+
+            if (data.bmi < 0) {
+                alert('BMI must be positive');
+                return;
+            }
+
+            // Show loading state
+            const saveBtn = document.getElementById('savePatientBtn');
+            const originalText = saveBtn.textContent;
+            saveBtn.textContent = 'Saving...';
+            saveBtn.disabled = true;
 
             try {
                 const resp = await fetch('/doctor/update_patient', {
@@ -637,13 +700,20 @@
                 });
 
                 const res = await resp.json();
+                
                 if (res.success) {
+                    // Show success message briefly before reload
+                    alert('✓ Patient updated successfully!\n\nPrediction: ' + res.prediction);
                     // reload to reflect changes in the table
                     window.location.reload();
                 } else {
+                    saveBtn.textContent = originalText;
+                    saveBtn.disabled = false;
                     alert('Update failed: ' + (res.message || 'Unknown error'));
                 }
             } catch (err) {
+                saveBtn.textContent = originalText;
+                saveBtn.disabled = false;
                 alert('Network error: ' + err.message);
             }
         }

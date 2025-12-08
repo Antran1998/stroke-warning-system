@@ -5,6 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Scientist Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            text-align: center;
+            color: white;
+            min-width: 80px;
+            font-size: 12px;
+        }
+
+        .badge-high-risk {
+            background-color: #ff4444;
+        }
+
+        .badge-low-risk {
+            background-color: #00C851;
+        }
+    </style>
 </head>
 <body>
     <div class="dashboard-container">
@@ -42,17 +62,43 @@
             
             <div class="card">
                 <h2>Data Collection & Export</h2>
-                <p>Export/Import patient data for training machine learning models</p>
+                <p>Export patient data for training machine learning models</p>
                 
-                <button onclick="exportData()" class="btn-primary">Export as CSV</button>
-                <button onclick="triggerFileInput()" class="btn-primary">Import as CSV</button>
-                <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="handleFileSelect(event)">
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button onclick="exportAsJSON()" class="btn-primary">Export as JSON</button>
+                    <button onclick="exportAsCSV()" class="btn-primary">Export as CSV</button>
+                </div>
                 
                 <div id="dataPreview" style="margin-top: 20px;"></div>
             </div>
             
             <div class="card">
+                <h2>Data Analysis Tools</h2>
+                
+                <div class="refinement-tools">
+                    <button onclick="analyzeData()" class="btn-secondary">
+                        Analyze Dataset
+                    </button>
+                    <button onclick="checkMissingValues()" class="btn-secondary">
+                        Check Missing Values
+                    </button>
+                    <button onclick="detectOutliers()" class="btn-secondary">
+                        Detect Outliers
+                    </button>
+                    <button onclick="showDistribution()" class="btn-secondary">
+                        Feature Distribution
+                    </button>
+                </div>
+                
+                <div id="analysisResult" class="refinement-result"></div>
+            </div>
+
+            <div class="card">
                 <h2>Model Training Configuration</h2>
+                
+                <div id="modelStatus" style="padding: 15px; margin-bottom: 20px; border-radius: 5px; display: none;">
+                    <!-- Model status will be displayed here -->
+                </div>
                 
                 <form id="trainingForm">
                     <div class="form-group">
@@ -67,168 +113,272 @@
                         </select>
                     </div>
                 
-                <div class="form-group">
-                    <label for="test_size">Test Set Size (%)</label>
-                    <input type="number" id="test_size" name="test_size" 
-                           value="20" min="10" max="40" step="5">
-                </div>
+                    <div class="form-group">
+                        <label for="test_size">Test Set Size (%)</label>
+                        <input type="number" id="test_size" name="test_size" 
+                               value="20" min="10" max="40" step="5">
+                    </div>
                 
-                <div class="form-group">
-                    <label for="cross_validation">Cross-Validation Folds</label>
-                    <input type="number" id="cross_validation" name="cross_validation" 
-                           value="5" min="3" max="10">
-                </div>
+                    <div class="form-group">
+                        <label for="cross_validation">Cross-Validation Folds</label>
+                        <input type="number" id="cross_validation" name="cross_validation" 
+                               value="5" min="3" max="10">
+                    </div>
                 
-                <button type="submit" class="btn-primary">Train Model</button>
-            </form>
+                    <button type="submit" class="btn-primary">Train Model</button>
+                </form>
                 
-                <div id="trainingResult" class="training-result" style="display: none;">
+                <div id="trainingResult" class="training-result" style="display: none; margin-top: 20px;">
                     <h3>Training Results</h3>
                     <div id="trainingContent"></div>
                 </div>
             </div>
-            
+
             <div class="card">
-                <h2>Data Refinement Tools</h2>
+                <h2>Model Management</h2>
+                <p>View and manage all trained models. Select a model to deploy for production predictions.</p>
                 
-                <div class="refinement-tools">
-                    <button onclick="checkMissingValues()" class="btn-secondary">
-                        Check Missing Values
-                    </button>
-                    <button onclick="detectOutliers()" class="btn-secondary">
-                        Detect Outliers
-                    </button>
-                    <button onclick="showDistribution()" class="btn-secondary">
-                        Feature Distribution
-                    </button>
-                    <button onclick="correlationAnalysis()" class="btn-secondary">
-                        Correlation Analysis
+                <div style="margin: 20px 0;">
+                    <button onclick="loadModelsList()" class="btn-primary">
+                        🔄 Refresh Models List
                     </button>
                 </div>
                 
-                <div id="refinementResult" class="refinement-result"></div>
+                <div id="modelsListContainer" style="margin-top: 20px;">
+                    <p style="color: #667eea;">Loading models...</p>
+                </div>
             </div>
         </div>
     </div>
     
-    <style>
-
-    </style>
     <script>
-
-
-        function triggerFileInput() {
-            document.getElementById('csvFileInput').click();
-        }
-
-        async function handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (!file) {
-                return;
-            }
-
-            if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-                alert('Please select a valid CSV file');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                try {
-                    const csvData = e.target.result;
-                    const parsedData = parseCSV(csvData);
-                    
-                    // Show preview of the data
-                    const previewHTML = `
-                        <div class="csv-preview">
-                            <h4>File import successfully!</h4>
+        // Check model status on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            checkModelStatus();
+            loadModelsList();
+        });
+        
+        async function checkModelStatus() {
+            try {
+                const response = await fetch('/data_scientist/model_status');
+                const status = await response.json();
+                
+                const statusDiv = document.getElementById('modelStatus');
+                statusDiv.style.display = 'block';
+                
+                if (status.deployed) {
+                    statusDiv.style.background = '#d4edda';
+                    statusDiv.style.borderLeft = '4px solid #28a745';
+                    statusDiv.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h4 style="margin: 0 0 8px 0; color: #155724;">✓ ML Model Deployed</h4>
+                                <p style="margin: 0; color: #155724;">
+                                    <strong>Algorithm:</strong> ${getAlgorithmName(status.algorithm)}<br>
+                                    <strong>Accuracy:</strong> ${(status.accuracy * 100).toFixed(2)}%<br>
+                                    <strong>Status:</strong> Active predictions using trained model
+                                </p>
+                            </div>
+                            <button onclick="reloadModel()" class="btn-secondary" style="white-space: nowrap;">
+                                Reload Model
+                            </button>
                         </div>
                     `;
-                    document.getElementById('dataPreview').innerHTML = previewHTML;
-
-                    // Store the parsed data for later use
-                    window.csvDataToImport = parsedData;
-
-                } catch (error) {
-                    alert('Error processing CSV file: ' + error.message);
-                    console.error('Error:', error);
-                }
-            };
-
-            reader.onerror = function(error) {
-                alert('Error reading file: ' + error);
-            };
-
-            reader.readAsText(file);
-        }
-
-        function parseCSV(csvText) {
-            const lines = csvText.split(/\\r?\\n/);
-            return lines.map(line => {
-                // Handle quoted values that contain commas
-                const row = [];
-                let inQuotes = false;
-                let currentValue = '';
-                
-                for (let char of line) {
-                    if (char === '"') {
-                        inQuotes = !inQuotes;
-                    } else if (char === ',' && !inQuotes) {
-                        row.push(currentValue.trim());
-                        currentValue = '';
-                    } else {
-                        currentValue += char;
-                    }
-                }
-                row.push(currentValue.trim());
-                return row;
-            }).filter(row => row.length > 1 || row[0].trim() !== '');
-        }
-
-        async function confirmImport() {
-            if (!window.csvDataToImport) {
-                alert('No data to import');
-                return;
-            }
-
-            try {
-                // Send the data to the server
-                const response = await fetch('/api/import-data', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        data: window.csvDataToImport
-                    })
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    document.getElementById('dataPreview').innerHTML = 
-                        `<p class="success-message">✓ Successfully imported ${window.csvDataToImport.length - 1} records!</p>`;
-                    // Clear the stored data
-                    window.csvDataToImport = null;
                 } else {
-                    throw new Error(result.message || 'Import failed');
+                    statusDiv.style.background = '#fff3cd';
+                    statusDiv.style.borderLeft = '4px solid #ffc107';
+                    statusDiv.innerHTML = `
+                        <h4 style="margin: 0 0 8px 0; color: #856404;">⚠ No Model Deployed</h4>
+                        <p style="margin: 0; color: #856404;">
+                            Currently using rule-based predictions. Train and deploy a model to enable ML predictions.
+                        </p>
+                    `;
                 }
             } catch (error) {
-                alert('Error importing data: ' + error.message);
-                console.error('Import error:', error);
+                console.error('Error checking model status:', error);
             }
         }
-
-        function cancelImport() {
-            // Clear the preview and stored data
-            document.getElementById('dataPreview').innerHTML = '';
-            window.csvDataToImport = null;
-            document.getElementById('csvFileInput').value = ''; // Reset file input
+        
+        async function loadModelsList() {
+            const container = document.getElementById('modelsListContainer');
+            container.innerHTML = '<p style="color: #667eea;">⏳ Loading models...</p>';
+            
+            try {
+                const response = await fetch('/data_scientist/list_models');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                const models = data.models || [];
+                
+                if (models.length === 0) {
+                    container.innerHTML = `
+                        <div style="padding: 20px; background: #f8f9fa; border-radius: 5px; text-align: center;">
+                            <p style="margin: 0; color: #666;">No trained models found. Train your first model above!</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = '<div class="models-list" style="display: grid; gap: 15px;">';
+                
+                models.forEach(model => {
+                    const isDeployed = model.is_deployed || false;
+                    const bgColor = isDeployed ? '#d4edda' : '#f8f9fa';
+                    const borderColor = isDeployed ? '#28a745' : '#ddd';
+                    const trainedDate = new Date(model.trained_at).toLocaleString();
+                    
+                    html += `
+                        <div style="padding: 20px; background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div style="flex: 1;">
+                                    ${isDeployed ? '<span style="background: #28a745; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-bottom: 10px; display: inline-block;">🚀 DEPLOYED</span>' : ''}
+                                    <h3 style="margin: ${isDeployed ? '10px' : '0'} 0 10px 0; color: #333;">
+                                        ${getAlgorithmName(model.algorithm)}
+                                    </h3>
+                                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 10px;">
+                                        <div>
+                                            <strong>Accuracy:</strong> <span style="color: #28a745; font-size: 18px; font-weight: bold;">${(model.accuracy * 100).toFixed(2)}%</span>
+                                        </div>
+                                        <div>
+                                            <strong>Precision:</strong> ${(model.precision * 100).toFixed(2)}%
+                                        </div>
+                                        <div>
+                                            <strong>Recall:</strong> ${(model.recall * 100).toFixed(2)}%
+                                        </div>
+                                        <div>
+                                            <strong>F1-Score:</strong> ${(model.f1_score * 100).toFixed(2)}%
+                                        </div>
+                                    </div>
+                                    <p style="margin: 5px 0; color: #666; font-size: 14px;">
+                                        <strong>Trained:</strong> ${trainedDate} by ${model.trained_by || 'Unknown'}
+                                    </p>
+                                    <p style="margin: 5px 0; color: #666; font-size: 14px;">
+                                        <strong>Dataset:</strong> ${model.dataset_size} patients (${model.training_size} train, ${model.test_size} test)
+                                    </p>
+                                    ${model.cv_mean ? `<p style="margin: 5px 0; color: #666; font-size: 14px;">
+                                        <strong>Cross-Validation:</strong> ${(model.cv_mean * 100).toFixed(2)}% ±${(model.cv_std * 100).toFixed(2)}%
+                                    </p>` : ''}
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 10px; margin-left: 20px;">
+                                    ${!isDeployed ? `
+                                        <button onclick="deployModel('${model.model_filename}')" class="btn-primary" style="white-space: nowrap;">
+                                            🚀 Deploy
+                                        </button>
+                                    ` : `
+                                        <button class="btn-secondary" style="white-space: nowrap; opacity: 0.6;" disabled>
+                                            ✓ Active
+                                        </button>
+                                    `}
+                                    ${!isDeployed ? `
+                                        <button onclick="deleteModel('${model.model_filename}')" class="btn-secondary" style="white-space: nowrap; background: #dc3545; color: white;">
+                                            🗑️ Delete
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                container.innerHTML = html;
+                
+            } catch (error) {
+                container.innerHTML = `
+                    <div style="padding: 20px; background: #f8d7da; border-left: 4px solid #dc3545; border-radius: 5px;">
+                        <p style="margin: 0; color: #721c24;">✗ Error loading models: ${error.message}</p>
+                    </div>
+                `;
+                console.error('Error loading models:', error);
+            }
         }
-
-        async function exportData() {
+        
+        async function deployModel(modelFilename) {
+            if (!confirm('Deploy this model? It will replace the currently deployed model.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/data_scientist/deploy_model', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ model_filename: modelFilename })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✓ ' + result.message);
+                    checkModelStatus();
+                    loadModelsList();
+                } else {
+                    alert('✗ Failed to deploy model: ' + result.error);
+                }
+            } catch (error) {
+                alert('✗ Error deploying model: ' + error.message);
+            }
+        }
+        
+        async function deleteModel(modelFilename) {
+            if (!confirm('Delete this model? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/data_scientist/delete_model', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ model_filename: modelFilename })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✓ ' + result.message);
+                    loadModelsList();
+                } else {
+                    alert('✗ Failed to delete model: ' + result.error);
+                }
+            } catch (error) {
+                alert('✗ Error deleting model: ' + error.message);
+            }
+        }
+        
+        async function reloadModel() {
+            try {
+                const response = await fetch('/data_scientist/reload_model', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✓ Model reloaded successfully!');
+                    checkModelStatus();
+                } else {
+                    alert('✗ Failed to reload model: ' + result.message);
+                }
+            } catch (error) {
+                alert('✗ Error reloading model: ' + error.message);
+            }
+        }
+        
+        async function exportAsJSON() {
             try {
                 const response = await fetch('/data_scientist/export_data');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
                 
                 // Download as JSON file
                 const blob = new Blob([JSON.stringify(data, null, 2)], 
@@ -238,23 +388,34 @@
                 a.href = url;
                 a.download = 'stroke_dataset_' + new Date().toISOString().split('T')[0] + '.json';
                 a.click();
+                URL.revokeObjectURL(url);
                 
-                // Show preview
+                // Show success message
                 document.getElementById('dataPreview').innerHTML = 
-                    `<p>✓ Exported ${data.length} patient records successfully!</p>`;
+                    `<p style="color: #28a745; font-weight: bold;">✓ Exported ${data.length} patient records as JSON successfully!</p>`;
             } catch (error) {
-                alert('Error exporting data: ' + error);
+                document.getElementById('dataPreview').innerHTML = 
+                    `<p style="color: #dc3545; font-weight: bold;">✗ Error exporting data: ${error.message}</p>`;
+                console.error('Export error:', error);
             }
         }
         
-        async function downloadCSV() {
+        async function exportAsCSV() {
             try {
                 const response = await fetch('/data_scientist/export_data');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
                 
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
                 if (data.length === 0) {
-                    alert('No data available to export');
-                    return;
+                    throw new Error('No data available to export');
                 }
                 
                 // Convert JSON to CSV
@@ -264,8 +425,13 @@
                 data.forEach(row => {
                     csv += headers.map(header => {
                         let value = row[header];
-                        if (typeof value === 'string' && value.includes(',')) {
-                            value = '"' + value + '"';
+                        // Handle null/undefined
+                        if (value === null || value === undefined) {
+                            value = '';
+                        }
+                        // Quote strings that contain commas
+                        if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
+                            value = '"' + value.replace(/"/g, '""') + '"';
                         }
                         return value;
                     }).join(',') + '\n';
@@ -278,133 +444,1184 @@
                 a.href = url;
                 a.download = 'stroke_dataset_' + new Date().toISOString().split('T')[0] + '.csv';
                 a.click();
+                URL.revokeObjectURL(url);
                 
                 document.getElementById('dataPreview').innerHTML = 
-                    `<p>✓ Exported ${data.length} records as CSV!</p>`;
+                    `<p style="color: #28a745; font-weight: bold;">✓ Exported ${data.length} records as CSV successfully!</p>`;
             } catch (error) {
-                alert('Error exporting CSV: ' + error);
+                document.getElementById('dataPreview').innerHTML = 
+                    `<p style="color: #dc3545; font-weight: bold;">✗ Error exporting CSV: ${error.message}</p>`;
+                console.error('CSV export error:', error);
+            }
+        }
+
+        async function analyzeData() {
+            const resultDiv = document.getElementById('analysisResult');
+            resultDiv.innerHTML = '<p style="color: #667eea;">⏳ Analyzing dataset...</p>';
+            
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.length === 0) {
+                    resultDiv.innerHTML = '<p style="color: #dc3545;">No data available for analysis</p>';
+                    return;
+                }
+                
+                // Calculate statistics
+                const stats = calculateStatistics(data);
+                
+                const analysisHTML = `
+                    <div class="analysis-result">
+                        <h3>Dataset Analysis</h3>
+                        
+                        <div class="distribution-summary">
+                            <div class="feature">
+                                <h4>Dataset Overview</h4>
+                                <p><strong>Total Records:</strong> ${stats.total}</p>
+                                <p><strong>High Risk:</strong> ${stats.highRisk} (${stats.highRiskPercent}%)</p>
+                                <p><strong>Low Risk:</strong> ${stats.lowRisk} (${stats.lowRiskPercent}%)</p>
+                            </div>
+                            
+                            <div class="feature">
+                                <h4>Age Statistics</h4>
+                                <p><strong>Mean:</strong> ${stats.age.mean} years</p>
+                                <p><strong>Median:</strong> ${stats.age.median} years</p>
+                                <p><strong>Min:</strong> ${stats.age.min} years</p>
+                                <p><strong>Max:</strong> ${stats.age.max} years</p>
+                            </div>
+                            
+                            <div class="feature">
+                                <h4>BMI Statistics</h4>
+                                <p><strong>Mean:</strong> ${stats.bmi.mean}</p>
+                                <p><strong>Median:</strong> ${stats.bmi.median}</p>
+                                <p><strong>Min:</strong> ${stats.bmi.min}</p>
+                                <p><strong>Max:</strong> ${stats.bmi.max}</p>
+                            </div>
+                            
+                            <div class="feature">
+                                <h4>Glucose Statistics</h4>
+                                <p><strong>Mean:</strong> ${stats.glucose.mean} mg/dL</p>
+                                <p><strong>Median:</strong> ${stats.glucose.median} mg/dL</p>
+                                <p><strong>Min:</strong> ${stats.glucose.min} mg/dL</p>
+                                <p><strong>Max:</strong> ${stats.glucose.max} mg/dL</p>
+                            </div>
+                            
+                            <div class="feature">
+                                <h4>Risk Factors</h4>
+                                <p><strong>Hypertension:</strong> ${stats.hypertension} (${((stats.hypertension/stats.total)*100).toFixed(1)}%)</p>
+                                <p><strong>Heart Disease:</strong> ${stats.heartDisease} (${((stats.heartDisease/stats.total)*100).toFixed(1)}%)</p>
+                                <p><strong>Smokers:</strong> ${stats.smokers} (${((stats.smokers/stats.total)*100).toFixed(1)}%)</p>
+                            </div>
+                            
+                            <div class="feature">
+                                <h4>Gender Distribution</h4>
+                                <p><strong>Male:</strong> ${stats.gender.male}</p>
+                                <p><strong>Female:</strong> ${stats.gender.female}</p>
+                                <p><strong>Other:</strong> ${stats.gender.other}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                resultDiv.innerHTML = analysisHTML;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: #dc3545;">Error analyzing data: ${error.message}</p>`;
+                console.error('Analysis error:', error);
             }
         }
         
-        document.getElementById('trainingForm').addEventListener('submit', function(e) {
+        function calculateStatistics(data) {
+            const stats = {
+                total: data.length,
+                highRisk: 0,
+                lowRisk: 0,
+                hypertension: 0,
+                heartDisease: 0,
+                smokers: 0,
+                age: { values: [], mean: 0, median: 0, min: 0, max: 0 },
+                bmi: { values: [], mean: 0, median: 0, min: 0, max: 0 },
+                glucose: { values: [], mean: 0, median: 0, min: 0, max: 0 },
+                gender: { male: 0, female: 0, other: 0 }
+            };
+            
+            data.forEach(patient => {
+                // Count predictions
+                if (patient.stroke_prediction === 'High Risk' || patient.stroke_prediction === 1) {
+                    stats.highRisk++;
+                } else if (patient.stroke_prediction === 'Low Risk' || patient.stroke_prediction === 0) {
+                    stats.lowRisk++;
+                }
+                
+                // Risk factors
+                if (patient.hypertension === 1 || patient.hypertension === '1') stats.hypertension++;
+                if (patient.heart_disease === 1 || patient.heart_disease === '1') stats.heartDisease++;
+                if (patient.smoking_status === 'smokes') stats.smokers++;
+                
+                // Gender
+                if (patient.gender === 'Male') stats.gender.male++;
+                else if (patient.gender === 'Female') stats.gender.female++;
+                else stats.gender.other++;
+                
+                // Collect numeric values
+                if (patient.age) stats.age.values.push(parseFloat(patient.age));
+                if (patient.bmi) stats.bmi.values.push(parseFloat(patient.bmi));
+                if (patient.avg_glucose_level) stats.glucose.values.push(parseFloat(patient.avg_glucose_level));
+            });
+            
+            // Calculate percentages
+            stats.highRiskPercent = ((stats.highRisk / stats.total) * 100).toFixed(1);
+            stats.lowRiskPercent = ((stats.lowRisk / stats.total) * 100).toFixed(1);
+            
+            // Calculate statistics for numeric fields
+            ['age', 'bmi', 'glucose'].forEach(field => {
+                const values = stats[field].values.sort((a, b) => a - b);
+                if (values.length > 0) {
+                    stats[field].mean = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
+                    stats[field].median = values[Math.floor(values.length / 2)].toFixed(1);
+                    stats[field].min = values[0].toFixed(1);
+                    stats[field].max = values[values.length - 1].toFixed(1);
+                }
+            });
+            
+            return stats;
+        }
+        
+        async function checkMissingValues() {
+            const resultDiv = document.getElementById('analysisResult');
+            resultDiv.innerHTML = '<p style="color: #667eea;">⏳ Checking for missing values...</p>';
+            
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.length === 0) {
+                    resultDiv.innerHTML = '<p style="color: #dc3545;">No data available</p>';
+                    return;
+                }
+                
+                // Check for missing values
+                const fields = ['name', 'age', 'gender', 'hypertension', 'heart_disease', 
+                               'ever_married', 'work_type', 'residence_type', 
+                               'avg_glucose_level', 'bmi', 'smoking_status', 'stroke_prediction'];
+                
+                const missing = {};
+                fields.forEach(field => {
+                    missing[field] = 0;
+                    data.forEach(row => {
+                        if (!row[field] || row[field] === '' || row[field] === null || row[field] === undefined) {
+                            missing[field]++;
+                        }
+                    });
+                });
+                
+                const tableRows = fields.map(field => {
+                    const count = missing[field];
+                    const percent = ((count / data.length) * 100).toFixed(2);
+                    const status = count === 0 ? '✓' : '⚠';
+                    return `<tr>
+                        <td>${status} ${field}</td>
+                        <td>${count}</td>
+                        <td>${percent}%</td>
+                    </tr>`;
+                }).join('');
+                
+                const mockMissingAnalysis = `
+                    <div class="analysis-result">
+                        <h3>Missing Values Analysis</h3>
+                        <div class="result-table">
+                            <table>
+                                <tr><th>Feature</th><th>Missing Values</th><th>Percentage</th></tr>
+                                ${tableRows}
+                            </table>
+                        </div>
+                        <p class="analysis-summary">
+                            <strong>Summary:</strong> Dataset completeness check completed. 
+                            ${Object.values(missing).every(v => v === 0) ? 
+                                'No missing values found! Dataset is complete.' : 
+                                'Some missing values detected. Consider data cleaning before training.'
+                            }
+                        </p>
+                    </div>`;
+                resultDiv.innerHTML = mockMissingAnalysis;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: #dc3545;">Error checking missing values: ${error.message}</p>`;
+                console.error('Missing values check error:', error);
+            }
+        }
+        
+        async function detectOutliers() {
+            const resultDiv = document.getElementById('analysisResult');
+            resultDiv.innerHTML = '<p style="color: #667eea;">⏳ Detecting outliers...</p>';
+            
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.length === 0) {
+                    resultDiv.innerHTML = '<p style="color: #dc3545;">No data available</p>';
+                    return;
+                }
+                
+                // Detect outliers using IQR method
+                const outliers = {
+                    age: detectOutliersIQR(data.map(d => parseFloat(d.age)).filter(v => !isNaN(v))),
+                    bmi: detectOutliersIQR(data.map(d => parseFloat(d.bmi)).filter(v => !isNaN(v))),
+                    glucose: detectOutliersIQR(data.map(d => parseFloat(d.avg_glucose_level)).filter(v => !isNaN(v)))
+                };
+                
+                const mockOutlierResults = `
+                    <div class="analysis-result">
+                        <h3>Outlier Detection Results</h3>
+                        <div class="outlier-summary">
+                            <h4>Detected Outliers (IQR Method):</h4>
+                            <ul>
+                                <li><strong>Age:</strong> ${outliers.age.count} outliers detected 
+                                    (< ${outliers.age.lowerBound.toFixed(1)} or > ${outliers.age.upperBound.toFixed(1)})</li>
+                                <li><strong>BMI:</strong> ${outliers.bmi.count} outliers detected 
+                                    (< ${outliers.bmi.lowerBound.toFixed(1)} or > ${outliers.bmi.upperBound.toFixed(1)})</li>
+                                <li><strong>Glucose Level:</strong> ${outliers.glucose.count} outliers detected 
+                                    (< ${outliers.glucose.lowerBound.toFixed(1)} or > ${outliers.glucose.upperBound.toFixed(1)} mg/dL)</li>
+                            </ul>
+                            <div class="recommendation">
+                                <h4>Recommendations:</h4>
+                                <p>1. Review extreme values for potential data entry errors</p>
+                                <p>2. Consider domain knowledge before removing outliers</p>
+                                <p>3. Document any data transformations applied</p>
+                            </div>
+                        </div>
+                    </div>`;
+                resultDiv.innerHTML = mockOutlierResults;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: #dc3545;">Error detecting outliers: ${error.message}</p>`;
+                console.error('Outlier detection error:', error);
+            }
+        }
+        
+        function detectOutliersIQR(values) {
+            if (values.length === 0) return { count: 0, lowerBound: 0, upperBound: 0 };
+            
+            values.sort((a, b) => a - b);
+            const q1 = values[Math.floor(values.length * 0.25)];
+            const q3 = values[Math.floor(values.length * 0.75)];
+            const iqr = q3 - q1;
+            const lowerBound = q1 - 1.5 * iqr;
+            const upperBound = q3 + 1.5 * iqr;
+            
+            const count = values.filter(v => v < lowerBound || v > upperBound).length;
+            
+            return { count, lowerBound, upperBound };
+        }
+        
+        async function showDistribution() {
+            const resultDiv = document.getElementById('analysisResult');
+            resultDiv.innerHTML = '<p style="color: #667eea;">⏳ Analyzing feature distribution...</p>';
+            
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.length === 0) {
+                    resultDiv.innerHTML = '<p style="color: #dc3545;">No data available</p>';
+                    return;
+                }
+                
+                // Calculate distributions
+                const stats = calculateStatistics(data);
+                
+                const mockDistribution = `
+                    <div class="analysis-result">
+                        <h3>Feature Distribution Analysis</h3>
+                        <div class="distribution-summary">
+                            <div class="feature">
+                                <h4>Age Distribution</h4>
+                                <p><strong>Mean:</strong> ${stats.age.mean} years</p>
+                                <p><strong>Median:</strong> ${stats.age.median} years</p>
+                                <p><strong>Range:</strong> ${stats.age.min} - ${stats.age.max} years</p>
+                                <p><strong>Distribution:</strong> ${stats.age.mean > stats.age.median ? 'Right-skewed' : 'Left-skewed'}</p>
+                            </div>
+                            <div class="feature">
+                                <h4>BMI Distribution</h4>
+                                <p><strong>Mean:</strong> ${stats.bmi.mean}</p>
+                                <p><strong>Median:</strong> ${stats.bmi.median}</p>
+                                <p><strong>Range:</strong> ${stats.bmi.min} - ${stats.bmi.max}</p>
+                                <p><strong>Distribution:</strong> ${Math.abs(stats.bmi.mean - stats.bmi.median) < 1 ? 'Normal' : 'Skewed'}</p>
+                            </div>
+                            <div class="feature">
+                                <h4>Glucose Level Distribution</h4>
+                                <p><strong>Mean:</strong> ${stats.glucose.mean} mg/dL</p>
+                                <p><strong>Median:</strong> ${stats.glucose.median} mg/dL</p>
+                                <p><strong>Range:</strong> ${stats.glucose.min} - ${stats.glucose.max} mg/dL</p>
+                                <p><strong>Distribution:</strong> ${stats.glucose.mean > stats.glucose.median ? 'Right-skewed' : 'Normal'}</p>
+                            </div>
+                            <div class="feature">
+                                <h4>Stroke Prediction Distribution</h4>
+                                <p><strong>High Risk:</strong> <span class="badge badge-high-risk">${stats.highRisk} (${stats.highRiskPercent}%)</span></p>
+                                <p><strong>Low Risk:</strong> <span class="badge badge-low-risk">${stats.lowRisk} (${stats.lowRiskPercent}%)</span></p>
+                                <p><strong>Balance:</strong> ${Math.abs(stats.highRisk - stats.lowRisk) / stats.total < 0.2 ? 'Balanced' : 'Imbalanced'}</p>
+                            </div>
+                        </div>
+                    </div>`;
+                resultDiv.innerHTML = mockDistribution;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: #dc3545;">Error analyzing distribution: ${error.message}</p>`;
+                console.error('Distribution analysis error:', error);
+            }
+        }
+
+        // Model Training Form Handler
+        document.getElementById('trainingForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const algorithm = document.getElementById('algorithm').value;
+            const testSize = document.getElementById('test_size').value;
+            const cvFolds = document.getElementById('cross_validation').value;
+            
             const resultDiv = document.getElementById('trainingResult');
             const resultContent = document.getElementById('trainingContent');
             
-            // Simulate training (in production, this would call backend ML training endpoint)
+            if (!algorithm) {
+                resultContent.innerHTML = `
+                    <p style="color: #dc3545; font-weight: bold;">Please select an algorithm</p>
+                `;
+                resultDiv.style.display = 'block';
+                return;
+            }
+            
             resultContent.innerHTML = `
-                <div class="training-info">
-                    <p><strong>Algorithm:</strong> ${algorithm}</p>
-                    <p><strong>Status:</strong> Training initiated...</p>
-                    <p class="note">Note: This is a prototype. In production, implement actual model training with scikit-learn</p>
-                    <div class="metrics">
-                        <h4>Expected Metrics:</h4>
-                        <ul>
-                            <li>Accuracy: ~95% (with proper training data)</li>
-                            <li>Precision: ~92%</li>
-                            <li>Recall: ~89%</li>
-                            <li>F1-Score: ~90%</li>
+                <p style="color: #667eea;">⏳ Training model with ${getAlgorithmName(algorithm)}...</p>
+                <p style="color: #999; font-size: 14px;">This may take a few moments depending on dataset size...</p>
+            `;
+            resultDiv.style.display = 'block';
+            
+            try {
+                const response = await fetch('/data_scientist/train_model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        algorithm: algorithm,
+                        test_size: testSize,
+                        cross_validation: cvFolds
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.error || 'Training failed');
+                }
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Training failed');
+                }
+                
+                const metrics = result.metrics;
+                const cm = metrics.confusion_matrix;
+                
+                // Build feature importance HTML
+                let featureImportanceHTML = '';
+                if (metrics.feature_importance && metrics.feature_importance.length > 0) {
+                    featureImportanceHTML = `
+                        <div class="feature-importance" style="margin-top: 20px;">
+                            <h4>Top Feature Importances:</h4>
+                            <ul style="line-height: 1.8;">
+                                ${metrics.feature_importance.map(f => 
+                                    `<li><strong>${f.feature}:</strong> ${(f.importance * 100).toFixed(2)}%</li>`
+                                ).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+                // Build cross-validation HTML
+                let cvHTML = '';
+                if (metrics.cv_mean !== null && metrics.cv_mean !== undefined) {
+                    cvHTML = `
+                        <div class="cv-results" style="margin-top: 20px; padding: 15px; background: #f0f8ff; border-radius: 5px;">
+                            <h4>Cross-Validation Results (${cvFolds} folds):</h4>
+                            <p><strong>Mean Accuracy:</strong> ${(metrics.cv_mean * 100).toFixed(2)}%</p>
+                            <p><strong>Standard Deviation:</strong> ±${(metrics.cv_std * 100).toFixed(2)}%</p>
+                        </div>
+                    `;
+                }
+                
+                // Build confusion matrix visualization
+                const tn = cm[0][0];
+                const fp = cm[0][1];
+                const fn = cm[1][0];
+                const tp = cm[1][1];
+                
+                resultContent.innerHTML = `
+                    <div class="training-info">
+                        <div style="padding: 15px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; margin-bottom: 20px;">
+                            <h4 style="margin-top: 0; color: #155724;">✓ Model Training Completed Successfully!</h4>
+                            <p style="margin-bottom: 0; color: #155724;">Model has been saved. Go to Model Management section below to deploy it.</p>
+                        </div>
+                        
+                        <div class="config-info" style="margin-bottom: 20px;">
+                            <h4>Training Configuration:</h4>
+                            <p><strong>Algorithm:</strong> ${getAlgorithmName(algorithm)}</p>
+                            <p><strong>Total Dataset Size:</strong> ${metrics.dataset_size} records</p>
+                            <p><strong>Training Set:</strong> ${metrics.training_size} records (${(100 - metrics.test_size_percent).toFixed(0)}%)</p>
+                            <p><strong>Test Set:</strong> ${metrics.test_size} records (${metrics.test_size_percent.toFixed(0)}%)</p>
+                        </div>
+                        
+                        <div class="metrics" style="padding: 15px; background: #f8f9fa; border-radius: 5px; margin-bottom: 20px;">
+                            <h4>Performance Metrics:</h4>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                                <div>
+                                    <p><strong>Accuracy:</strong> <span style="color: #28a745; font-size: 18px; font-weight: bold;">${(metrics.accuracy * 100).toFixed(2)}%</span></p>
+                                    <p><strong>Precision:</strong> ${(metrics.precision * 100).toFixed(2)}%</p>
+                                </div>
+                                <div>
+                                    <p><strong>Recall:</strong> ${(metrics.recall * 100).toFixed(2)}%</p>
+                                    <p><strong>F1-Score:</strong> ${(metrics.f1_score * 100).toFixed(2)}%</p>
+                                </div>
+                            </div>
+                            ${metrics.roc_auc ? `<p><strong>ROC-AUC Score:</strong> ${(metrics.roc_auc * 100).toFixed(2)}%</p>` : ''}
+                        </div>
+                        
+                        ${cvHTML}
+                        
+                        <div class="confusion-matrix" style="margin-top: 20px; padding: 15px; background: #fff3cd; border-radius: 5px;">
+                            <h4>Confusion Matrix:</h4>
+                            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                                <thead>
+                                    <tr>
+                                        <th style="border: 1px solid #ddd; padding: 8px; background: #f8f9fa;"></th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; background: #f8f9fa;">Predicted Low Risk</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; background: #f8f9fa;">Predicted High Risk</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold; background: #f8f9fa;">Actual Low Risk</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; background: #d4edda;"><strong>${tn}</strong> (True Negative)</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; background: #f8d7da;"><strong>${fp}</strong> (False Positive)</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold; background: #f8f9fa;">Actual High Risk</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; background: #f8d7da;"><strong>${fn}</strong> (False Negative)</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; background: #d4edda;"><strong>${tp}</strong> (True Positive)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        ${featureImportanceHTML}
+                        
+                        <div class="recommendation" style="margin-top: 20px; padding: 15px; background: #e7f3ff; border-left: 4px solid #2196F3; border-radius: 4px;">
+                            <h4 style="margin-top: 0;">💡 Algorithm Insights:</h4>
+                            ${getAlgorithmRecommendation(algorithm)}
+                        </div>
+                        
+                        <div class="next-steps" style="margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                            <h4 style="margin-top: 0;">📝 Next Steps:</h4>
+                            <ol style="line-height: 1.8; margin-bottom: 0;">
+                                <li>Review metrics and confusion matrix above</li>
+                                <li>If satisfied with performance, scroll down to <strong>Model Management</strong> section</li>
+                                <li>Click the <strong>🚀 Deploy</strong> button for this model</li>
+                                <li>The model will be activated for production predictions</li>
+                                <li>Continue collecting data to train better models in the future</li>
+                            </ol>
+                        </div>
+                    </div>
+                `;
+                
+                // Refresh models list
+                loadModelsList();
+                
+            } catch (error) {
+                resultContent.innerHTML = `
+                    <div style="padding: 15px; background: #f8d7da; border-left: 4px solid #dc3545; border-radius: 4px;">
+                        <h4 style="margin-top: 0; color: #721c24;">✗ Training Error</h4>
+                        <p style="margin-bottom: 0; color: #721c24;">${error.message}</p>
+                    </div>
+                    <div class="note" style="margin-top: 15px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                        <h4 style="margin-top: 0;">💡 Troubleshooting:</h4>
+                        <ul style="line-height: 1.8; margin-bottom: 0;">
+                            <li>Ensure you have at least 50 patient records with predictions</li>
+                            <li>Check that all records have complete data</li>
+                            <li>Try exporting data and verifying data quality</li>
+                            <li>Consider using a different algorithm or adjusting parameters</li>
                         </ul>
                     </div>
-                </div>
-            `;
-            
-            resultDiv.style.display = 'block';
+                `;
+                console.error('Training error:', error);
+            }
         });
         
-        function checkMissingValues() {
-            const mockMissingAnalysis = `
-                <div class="analysis-result">
-                    <h3>Missing Values Analysis</h3>
-                    <div class="result-table">
-                        <table>
-                            <tr><th>Feature</th><th>Missing Values</th><th>Percentage</th></tr>
-                            <tr><td>Age</td><td>0</td><td>0%</td></tr>
-                            <tr><td>BMI</td><td>12</td><td>2.4%</td></tr>
-                            <tr><td>Glucose Level</td><td>5</td><td>1%</td></tr>
-                            <tr><td>Smoking Status</td><td>8</td><td>1.6%</td></tr>
-                        </table>
-                    </div>
-                    <p class="analysis-summary">
-                        <strong>Summary:</strong> Dataset is relatively complete with minimal missing values.
-                        Recommended action: Apply mean imputation for BMI and mode imputation for categorical variables.
-                    </p>
-                </div>`;
-            document.getElementById('refinementResult').innerHTML = mockMissingAnalysis;
+        function getAlgorithmName(algo) {
+            const names = {
+                'random_forest': 'Random Forest',
+                'svm': 'Support Vector Machine (SVM)',
+                'naive_bayes': 'Naive Bayes',
+                'gradient_boost': 'Gradient Boosting',
+                'logistic_regression': 'Logistic Regression'
+            };
+            return names[algo] || algo;
         }
         
-        function detectOutliers() {
-            const mockOutlierResults = `
-                <div class="analysis-result">
-                    <h3>Outlier Detection Results</h3>
-                    <div class="outlier-summary">
-                        <h4>Detected Outliers:</h4>
-                        <ul>
-                            <li><strong>BMI:</strong> 15 outliers detected (> 40 or < 15)</li>
-                            <li><strong>Average Glucose Level:</strong> 23 outliers (> 300 mg/dL)</li>
-                            <li><strong>Age:</strong> No significant outliers</li>
-                        </ul>
-                        <div class="recommendation">
-                            <h4>Recommendations:</h4>
-                            <p>1. Review extreme BMI values for potential data entry errors</p>
-                            <p>2. Verify glucose readings above 300 mg/dL with medical records</p>
-                            <p>3. Consider capping values at 3 standard deviations from mean</p>
+        function getAlgorithmRecommendation(algo) {
+            const recommendations = {
+                'random_forest': `
+                    <p><strong>Random Forest</strong> is an excellent choice for this problem:</p>
+                    <ul style="line-height: 1.8;">
+                        <li>✓ Handles both numerical and categorical features well</li>
+                        <li>✓ Robust to outliers and missing values</li>
+                        <li>✓ Provides feature importance rankings</li>
+                        <li>✓ Good performance without much hyperparameter tuning</li>
+                        <li>⚠ Can be slow to train with very large datasets</li>
+                    </ul>
+                `,
+                'svm': `
+                    <p><strong>SVM</strong> can work well but requires careful tuning:</p>
+                    <ul style="line-height: 1.8;">
+                        <li>✓ Effective in high-dimensional spaces</li>
+                        <li>✓ Works well with clear margin of separation</li>
+                        <li>⚠ Requires feature scaling (normalize/standardize)</li>
+                        <li>⚠ Sensitive to kernel and hyperparameter selection</li>
+                        <li>⚠ Slow training time with large datasets</li>
+                    </ul>
+                `,
+                'naive_bayes': `
+                    <p><strong>Naive Bayes</strong> is fast but may not be optimal:</p>
+                    <ul style="line-height: 1.8;">
+                        <li>✓ Very fast training and prediction</li>
+                        <li>✓ Works well with small datasets</li>
+                        <li>✓ Good for baseline models</li>
+                        <li>⚠ Assumes feature independence (often not true)</li>
+                        <li>⚠ May underperform compared to ensemble methods</li>
+                    </ul>
+                `,
+                'gradient_boost': `
+                    <p><strong>Gradient Boosting</strong> often achieves best performance:</p>
+                    <ul style="line-height: 1.8;">
+                        <li>✓ Often highest accuracy for structured data</li>
+                        <li>✓ Handles complex feature interactions</li>
+                        <li>✓ Built-in feature selection</li>
+                        <li>⚠ Requires careful hyperparameter tuning</li>
+                        <li>⚠ Prone to overfitting if not regularized</li>
+                        <li>⚠ Longer training time</li>
+                    </ul>
+                `,
+                'logistic_regression': `
+                    <p><strong>Logistic Regression</strong> is simple and interpretable:</p>
+                    <ul style="line-height: 1.8;">
+                        <li>✓ Fast training and prediction</li>
+                        <li>✓ Highly interpretable coefficients</li>
+                        <li>✓ Works well with linearly separable data</li>
+                        <li>✓ Good baseline model</li>
+                        <li>⚠ May underfit complex relationships</li>
+                        <li>⚠ Requires feature engineering for non-linear patterns</li>
+                    </ul>
+                `
+            };
+            return recommendations[algo] || '<p>Algorithm selected. Proceed with training.</p>';
+        }
+
+        async function loadModelsList() {
+            const container = document.getElementById('modelsListContainer');
+            container.innerHTML = '<p style="color: #667eea;">⏳ Loading models...</p>';
+            
+            try {
+                const response = await fetch('/data_scientist/list_models');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                const models = data.models || [];
+                
+                if (models.length === 0) {
+                    container.innerHTML = `
+                        <div style="padding: 20px; background: #f8f9fa; border-radius: 5px; text-align: center;">
+                            <p style="margin: 0; color: #666;">No trained models found. Train your first model above!</p>
                         </div>
+                    `;
+                    return;
+                }
+                
+                let html = '<div class="models-list" style="display: grid; gap: 15px;">';
+                
+                models.forEach(model => {
+                    const isDeployed = model.is_deployed || false;
+                    const bgColor = isDeployed ? '#d4edda' : '#f8f9fa';
+                    const borderColor = isDeployed ? '#28a745' : '#ddd';
+                    const trainedDate = new Date(model.trained_at).toLocaleString();
+                    
+                    html += `
+                        <div style="padding: 20px; background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div style="flex: 1;">
+                                    ${isDeployed ? '<span style="background: #28a745; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-bottom: 10px; display: inline-block;">🚀 DEPLOYED</span>' : ''}
+                                    <h3 style="margin: ${isDeployed ? '10px' : '0'} 0 10px 0; color: #333;">
+                                        ${getAlgorithmName(model.algorithm)}
+                                    </h3>
+                                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 10px;">
+                                        <div>
+                                            <strong>Accuracy:</strong> <span style="color: #28a745; font-size: 18px; font-weight: bold;">${(model.accuracy * 100).toFixed(2)}%</span>
+                                        </div>
+                                        <div>
+                                            <strong>Precision:</strong> ${(model.precision * 100).toFixed(2)}%
+                                        </div>
+                                        <div>
+                                            <strong>Recall:</strong> ${(model.recall * 100).toFixed(2)}%
+                                        </div>
+                                        <div>
+                                            <strong>F1-Score:</strong> ${(model.f1_score * 100).toFixed(2)}%
+                                        </div>
+                                    </div>
+                                    <p style="margin: 5px 0; color: #666; font-size: 14px;">
+                                        <strong>Trained:</strong> ${trainedDate} by ${model.trained_by || 'Unknown'}
+                                    </p>
+                                    <p style="margin: 5px 0; color: #666; font-size: 14px;">
+                                        <strong>Dataset:</strong> ${model.dataset_size} patients (${model.training_size} train, ${model.test_size} test)
+                                    </p>
+                                    ${model.cv_mean ? `<p style="margin: 5px 0; color: #666; font-size: 14px;">
+                                        <strong>Cross-Validation:</strong> ${(model.cv_mean * 100).toFixed(2)}% ±${(model.cv_std * 100).toFixed(2)}%
+                                    </p>` : ''}
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 10px; margin-left: 20px;">
+                                    ${!isDeployed ? `
+                                        <button onclick="deployModel('${model.model_filename}')" class="btn-primary" style="white-space: nowrap;">
+                                            🚀 Deploy
+                                        </button>
+                                    ` : `
+                                        <button class="btn-secondary" style="white-space: nowrap; opacity: 0.6;" disabled>
+                                            ✓ Active
+                                        </button>
+                                    `}
+                                    ${!isDeployed ? `
+                                        <button onclick="deleteModel('${model.model_filename}')" class="btn-secondary" style="white-space: nowrap; background: #dc3545; color: white;">
+                                            🗑️ Delete
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                container.innerHTML = html;
+                
+            } catch (error) {
+                container.innerHTML = `
+                    <div style="padding: 20px; background: #f8d7da; border-left: 4px solid #dc3545; border-radius: 5px;">
+                        <p style="margin: 0; color: #721c24;">✗ Error loading models: ${error.message}</p>
                     </div>
-                </div>`;
-            document.getElementById('refinementResult').innerHTML = mockOutlierResults;
+                `;
+                console.error('Error loading models:', error);
+            }
         }
         
-        function showDistribution() {
-            const mockDistribution = `
-                <div class="analysis-result">
-                    <h3>Feature Distribution Analysis</h3>
-                    <div class="distribution-summary">
-                        <div class="feature">
-                            <h4>Age Distribution</h4>
-                            <p>Mean: 45.6 years</p>
-                            <p>Median: 43 years</p>
-                            <p>Distribution: Right-skewed</p>
-                        </div>
-                        <div class="feature">
-                            <h4>BMI Distribution</h4>
-                            <p>Mean: 28.3</p>
-                            <p>Median: 27.1</p>
-                            <p>Distribution: Normal with slight right skew</p>
-                        </div>
-                        <div class="feature">
-                            <h4>Glucose Level Distribution</h4>
-                            <p>Mean: 106.2 mg/dL</p>
-                            <p>Median: 91.5 mg/dL</p>
-                            <p>Distribution: Heavy right skew</p>
-                        </div>
-                    </div>
-                </div>`;
-            document.getElementById('refinementResult').innerHTML = mockDistribution;
+        async function deployModel(modelFilename) {
+            if (!confirm('Deploy this model? It will replace the currently deployed model.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/data_scientist/deploy_model', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ model_filename: modelFilename })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✓ ' + result.message);
+                    checkModelStatus();
+                    loadModelsList();
+                } else {
+                    alert('✗ Failed to deploy model: ' + result.error);
+                }
+            } catch (error) {
+                alert('✗ Error deploying model: ' + error.message);
+            }
         }
         
-        function correlationAnalysis() {
-            const mockCorrelation = `
-                <div class="analysis-result">
-                    <h3>Feature Correlation Analysis</h3>
-                    <div class="correlation-table">
-                        <table>
-                            <tr><th>Feature Pair</th><th>Correlation</th><th>Significance</th></tr>
-                            <tr><td>Age - Stroke Risk</td><td>0.78</td><td>High</td></tr>
-                            <tr><td>Hypertension - Stroke Risk</td><td>0.65</td><td>High</td></tr>
-                            <tr><td>Heart Disease - Stroke Risk</td><td>0.61</td><td>High</td></tr>
-                            <tr><td>BMI - Stroke Risk</td><td>0.42</td><td>Medium</td></tr>
-                            <tr><td>Glucose - Stroke Risk</td><td>0.39</td><td>Medium</td></tr>
-                        </table>
+        async function deleteModel(modelFilename) {
+            if (!confirm('Delete this model? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/data_scientist/delete_model', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ model_filename: modelFilename })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✓ ' + result.message);
+                    loadModelsList();
+                } else {
+                    alert('✗ Failed to delete model: ' + result.error);
+                }
+            } catch (error) {
+                alert('✗ Error deleting model: ' + error.message);
+            }
+        }
+        
+        async function reloadModel() {
+            try {
+                const response = await fetch('/data_scientist/reload_model', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✓ Model reloaded successfully!');
+                    checkModelStatus();
+                } else {
+                    alert('✗ Failed to reload model: ' + result.message);
+                }
+            } catch (error) {
+                alert('✗ Error reloading model: ' + error.message);
+            }
+        }
+        
+        async function exportAsJSON() {
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Download as JSON file
+                const blob = new Blob([JSON.stringify(data, null, 2)], 
+                    {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'stroke_dataset_' + new Date().toISOString().split('T')[0] + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                // Show success message
+                document.getElementById('dataPreview').innerHTML = 
+                    `<p style="color: #28a745; font-weight: bold;">✓ Exported ${data.length} patient records as JSON successfully!</p>`;
+            } catch (error) {
+                document.getElementById('dataPreview').innerHTML = 
+                    `<p style="color: #dc3545; font-weight: bold;">✗ Error exporting data: ${error.message}</p>`;
+                console.error('Export error:', error);
+            }
+        }
+        
+        async function exportAsCSV() {
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.length === 0) {
+                    throw new Error('No data available to export');
+                }
+                
+                // Convert JSON to CSV
+                const headers = Object.keys(data[0]);
+                let csv = headers.join(',') + '\n';
+                
+                data.forEach(row => {
+                    csv += headers.map(header => {
+                        let value = row[header];
+                        // Handle null/undefined
+                        if (value === null || value === undefined) {
+                            value = '';
+                        }
+                        // Quote strings that contain commas
+                        if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
+                            value = '"' + value.replace(/"/g, '""') + '"';
+                        }
+                        return value;
+                    }).join(',') + '\n';
+                });
+                
+                // Download CSV file
+                const blob = new Blob([csv], {type: 'text/csv'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'stroke_dataset_' + new Date().toISOString().split('T')[0] + '.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                document.getElementById('dataPreview').innerHTML = 
+                    `<p style="color: #28a745; font-weight: bold;">✓ Exported ${data.length} records as CSV successfully!</p>`;
+            } catch (error) {
+                document.getElementById('dataPreview').innerHTML = 
+                    `<p style="color: #dc3545; font-weight: bold;">✗ Error exporting CSV: ${error.message}</p>`;
+                console.error('CSV export error:', error);
+            }
+        }
+
+        async function analyzeData() {
+            const resultDiv = document.getElementById('analysisResult');
+            resultDiv.innerHTML = '<p style="color: #667eea;">⏳ Analyzing dataset...</p>';
+            
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.length === 0) {
+                    resultDiv.innerHTML = '<p style="color: #dc3545;">No data available for analysis</p>';
+                    return;
+                }
+                
+                // Calculate statistics
+                const stats = calculateStatistics(data);
+                
+                const analysisHTML = `
+                    <div class="analysis-result">
+                        <h3>Dataset Analysis</h3>
+                        
+                        <div class="distribution-summary">
+                            <div class="feature">
+                                <h4>Dataset Overview</h4>
+                                <p><strong>Total Records:</strong> ${stats.total}</p>
+                                <p><strong>High Risk:</strong> ${stats.highRisk} (${stats.highRiskPercent}%)</p>
+                                <p><strong>Low Risk:</strong> ${stats.lowRisk} (${stats.lowRiskPercent}%)</p>
+                            </div>
+                            
+                            <div class="feature">
+                                <h4>Age Statistics</h4>
+                                <p><strong>Mean:</strong> ${stats.age.mean} years</p>
+                                <p><strong>Median:</strong> ${stats.age.median} years</p>
+                                <p><strong>Min:</strong> ${stats.age.min} years</p>
+                                <p><strong>Max:</strong> ${stats.age.max} years</p>
+                            </div>
+                            
+                            <div class="feature">
+                                <h4>BMI Statistics</h4>
+                                <p><strong>Mean:</strong> ${stats.bmi.mean}</p>
+                                <p><strong>Median:</strong> ${stats.bmi.median}</p>
+                                <p><strong>Min:</strong> ${stats.bmi.min}</p>
+                                <p><strong>Max:</strong> ${stats.bmi.max}</p>
+                            </div>
+                            
+                            <div class="feature">
+                                <h4>Glucose Statistics</h4>
+                                <p><strong>Mean:</strong> ${stats.glucose.mean} mg/dL</p>
+                                <p><strong>Median:</strong> ${stats.glucose.median} mg/dL</p>
+                                <p><strong>Min:</strong> ${stats.glucose.min} mg/dL</p>
+                                <p><strong>Max:</strong> ${stats.glucose.max} mg/dL</p>
+                            </div>
+                            
+                            <div class="feature">
+                                <h4>Risk Factors</h4>
+                                <p><strong>Hypertension:</strong> ${stats.hypertension} (${((stats.hypertension/stats.total)*100).toFixed(1)}%)</p>
+                                <p><strong>Heart Disease:</strong> ${stats.heartDisease} (${((stats.heartDisease/stats.total)*100).toFixed(1)}%)</p>
+                                <p><strong>Smokers:</strong> ${stats.smokers} (${((stats.smokers/stats.total)*100).toFixed(1)}%)</p>
+                            </div>
+                            
+                            <div class="feature">
+                                <h4>Gender Distribution</h4>
+                                <p><strong>Male:</strong> ${stats.gender.male}</p>
+                                <p><strong>Female:</strong> ${stats.gender.female}</p>
+                                <p><strong>Other:</strong> ${stats.gender.other}</p>
+                            </div>
+                        </div>
                     </div>
-                    <p class="analysis-insight">
-                        <strong>Key Insights:</strong> Age shows the strongest correlation with stroke risk,
-                        followed by hypertension and heart disease. BMI and glucose levels show moderate correlation.
-                    </p>
-                </div>`;
-            document.getElementById('refinementResult').innerHTML = mockCorrelation;
+                `;
+                
+                resultDiv.innerHTML = analysisHTML;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: #dc3545;">Error analyzing data: ${error.message}</p>`;
+                console.error('Analysis error:', error);
+            }
+        }
+        
+        function calculateStatistics(data) {
+            const stats = {
+                total: data.length,
+                highRisk: 0,
+                lowRisk: 0,
+                hypertension: 0,
+                heartDisease: 0,
+                smokers: 0,
+                age: { values: [], mean: 0, median: 0, min: 0, max: 0 },
+                bmi: { values: [], mean: 0, median: 0, min: 0, max: 0 },
+                glucose: { values: [], mean: 0, median: 0, min: 0, max: 0 },
+                gender: { male: 0, female: 0, other: 0 }
+            };
+            
+            data.forEach(patient => {
+                // Count predictions
+                if (patient.stroke_prediction === 'High Risk' || patient.stroke_prediction === 1) {
+                    stats.highRisk++;
+                } else if (patient.stroke_prediction === 'Low Risk' || patient.stroke_prediction === 0) {
+                    stats.lowRisk++;
+                }
+                
+                // Risk factors
+                if (patient.hypertension === 1 || patient.hypertension === '1') stats.hypertension++;
+                if (patient.heart_disease === 1 || patient.heart_disease === '1') stats.heartDisease++;
+                if (patient.smoking_status === 'smokes') stats.smokers++;
+                
+                // Gender
+                if (patient.gender === 'Male') stats.gender.male++;
+                else if (patient.gender === 'Female') stats.gender.female++;
+                else stats.gender.other++;
+                
+                // Collect numeric values
+                if (patient.age) stats.age.values.push(parseFloat(patient.age));
+                if (patient.bmi) stats.bmi.values.push(parseFloat(patient.bmi));
+                if (patient.avg_glucose_level) stats.glucose.values.push(parseFloat(patient.avg_glucose_level));
+            });
+            
+            // Calculate percentages
+            stats.highRiskPercent = ((stats.highRisk / stats.total) * 100).toFixed(1);
+            stats.lowRiskPercent = ((stats.lowRisk / stats.total) * 100).toFixed(1);
+            
+            // Calculate statistics for numeric fields
+            ['age', 'bmi', 'glucose'].forEach(field => {
+                const values = stats[field].values.sort((a, b) => a - b);
+                if (values.length > 0) {
+                    stats[field].mean = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
+                    stats[field].median = values[Math.floor(values.length / 2)].toFixed(1);
+                    stats[field].min = values[0].toFixed(1);
+                    stats[field].max = values[values.length - 1].toFixed(1);
+                }
+            });
+            
+            return stats;
+        }
+        
+        async function checkMissingValues() {
+            const resultDiv = document.getElementById('analysisResult');
+            resultDiv.innerHTML = '<p style="color: #667eea;">⏳ Checking for missing values...</p>';
+            
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.length === 0) {
+                    resultDiv.innerHTML = '<p style="color: #dc3545;">No data available</p>';
+                    return;
+                }
+                
+                // Check for missing values
+                const fields = ['name', 'age', 'gender', 'hypertension', 'heart_disease', 
+                               'ever_married', 'work_type', 'residence_type', 
+                               'avg_glucose_level', 'bmi', 'smoking_status', 'stroke_prediction'];
+                
+                const missing = {};
+                fields.forEach(field => {
+                    missing[field] = 0;
+                    data.forEach(row => {
+                        if (!row[field] || row[field] === '' || row[field] === null || row[field] === undefined) {
+                            missing[field]++;
+                        }
+                    });
+                });
+                
+                const tableRows = fields.map(field => {
+                    const count = missing[field];
+                    const percent = ((count / data.length) * 100).toFixed(2);
+                    const status = count === 0 ? '✓' : '⚠';
+                    return `<tr>
+                        <td>${status} ${field}</td>
+                        <td>${count}</td>
+                        <td>${percent}%</td>
+                    </tr>`;
+                }).join('');
+                
+                const mockMissingAnalysis = `
+                    <div class="analysis-result">
+                        <h3>Missing Values Analysis</h3>
+                        <div class="result-table">
+                            <table>
+                                <tr><th>Feature</th><th>Missing Values</th><th>Percentage</th></tr>
+                                ${tableRows}
+                            </table>
+                        </div>
+                        <p class="analysis-summary">
+                            <strong>Summary:</strong> Dataset completeness check completed. 
+                            ${Object.values(missing).every(v => v === 0) ? 
+                                'No missing values found! Dataset is complete.' : 
+                                'Some missing values detected. Consider data cleaning before training.'
+                            }
+                        </p>
+                    </div>`;
+                resultDiv.innerHTML = mockMissingAnalysis;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: #dc3545;">Error checking missing values: ${error.message}</p>`;
+                console.error('Missing values check error:', error);
+            }
+        }
+        
+        async function detectOutliers() {
+            const resultDiv = document.getElementById('analysisResult');
+            resultDiv.innerHTML = '<p style="color: #667eea;">⏳ Detecting outliers...</p>';
+            
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.length === 0) {
+                    resultDiv.innerHTML = '<p style="color: #dc3545;">No data available</p>';
+                    return;
+                }
+                
+                // Detect outliers using IQR method
+                const outliers = {
+                    age: detectOutliersIQR(data.map(d => parseFloat(d.age)).filter(v => !isNaN(v))),
+                    bmi: detectOutliersIQR(data.map(d => parseFloat(d.bmi)).filter(v => !isNaN(v))),
+                    glucose: detectOutliersIQR(data.map(d => parseFloat(d.avg_glucose_level)).filter(v => !isNaN(v)))
+                };
+                
+                const mockOutlierResults = `
+                    <div class="analysis-result">
+                        <h3>Outlier Detection Results</h3>
+                        <div class="outlier-summary">
+                            <h4>Detected Outliers (IQR Method):</h4>
+                            <ul>
+                                <li><strong>Age:</strong> ${outliers.age.count} outliers detected 
+                                    (< ${outliers.age.lowerBound.toFixed(1)} or > ${outliers.age.upperBound.toFixed(1)})</li>
+                                <li><strong>BMI:</strong> ${outliers.bmi.count} outliers detected 
+                                    (< ${outliers.bmi.lowerBound.toFixed(1)} or > ${outliers.bmi.upperBound.toFixed(1)})</li>
+                                <li><strong>Glucose Level:</strong> ${outliers.glucose.count} outliers detected 
+                                    (< ${outliers.glucose.lowerBound.toFixed(1)} or > ${outliers.glucose.upperBound.toFixed(1)} mg/dL)</li>
+                            </ul>
+                            <div class="recommendation">
+                                <h4>Recommendations:</h4>
+                                <p>1. Review extreme values for potential data entry errors</p>
+                                <p>2. Consider domain knowledge before removing outliers</p>
+                                <p>3. Document any data transformations applied</p>
+                            </div>
+                        </div>
+                    </div>`;
+                resultDiv.innerHTML = mockOutlierResults;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: #dc3545;">Error detecting outliers: ${error.message}</p>`;
+                console.error('Outlier detection error:', error);
+            }
+        }
+        
+        function detectOutliersIQR(values) {
+            if (values.length === 0) return { count: 0, lowerBound: 0, upperBound: 0 };
+            
+            values.sort((a, b) => a - b);
+            const q1 = values[Math.floor(values.length * 0.25)];
+            const q3 = values[Math.floor(values.length * 0.75)];
+            const iqr = q3 - q1;
+            const lowerBound = q1 - 1.5 * iqr;
+            const upperBound = q3 + 1.5 * iqr;
+            
+            const count = values.filter(v => v < lowerBound || v > upperBound).length;
+            
+            return { count, lowerBound, upperBound };
+        }
+        
+        async function showDistribution() {
+            const resultDiv = document.getElementById('analysisResult');
+            resultDiv.innerHTML = '<p style="color: #667eea;">⏳ Analyzing feature distribution...</p>';
+            
+            try {
+                const response = await fetch('/data_scientist/export_data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.length === 0) {
+                    resultDiv.innerHTML = '<p style="color: #dc3545;">No data available</p>';
+                    return;
+                }
+                
+                // Calculate distributions
+                const stats = calculateStatistics(data);
+                
+                const mockDistribution = `
+                    <div class="analysis-result">
+                        <h3>Feature Distribution Analysis</h3>
+                        <div class="distribution-summary">
+                            <div class="feature">
+                                <h4>Age Distribution</h4>
+                                <p><strong>Mean:</strong> ${stats.age.mean} years</p>
+                                <p><strong>Median:</strong> ${stats.age.median} years</p>
+                                <p><strong>Range:</strong> ${stats.age.min} - ${stats.age.max} years</p>
+                                <p><strong>Distribution:</strong> ${stats.age.mean > stats.age.median ? 'Right-skewed' : 'Left-skewed'}</p>
+                            </div>
+                            <div class="feature">
+                                <h4>BMI Distribution</h4>
+                                <p><strong>Mean:</strong> ${stats.bmi.mean}</p>
+                                <p><strong>Median:</strong> ${stats.bmi.median}</p>
+                                <p><strong>Range:</strong> ${stats.bmi.min} - ${stats.bmi.max}</p>
+                                <p><strong>Distribution:</strong> ${Math.abs(stats.bmi.mean - stats.bmi.median) < 1 ? 'Normal' : 'Skewed'}</p>
+                            </div>
+                            <div class="feature">
+                                <h4>Glucose Level Distribution</h4>
+                                <p><strong>Mean:</strong> ${stats.glucose.mean} mg/dL</p>
+                                <p><strong>Median:</strong> ${stats.glucose.median} mg/dL</p>
+                                <p><strong>Range:</strong> ${stats.glucose.min} - ${stats.glucose.max} mg/dL</p>
+                                <p><strong>Distribution:</strong> ${stats.glucose.mean > stats.glucose.median ? 'Right-skewed' : 'Normal'}</p>
+                            </div>
+                            <div class="feature">
+                                <h4>Stroke Prediction Distribution</h4>
+                                <p><strong>High Risk:</strong> <span class="badge badge-high-risk">${stats.highRisk} (${stats.highRiskPercent}%)</span></p>
+                                <p><strong>Low Risk:</strong> <span class="badge badge-low-risk">${stats.lowRisk} (${stats.lowRiskPercent}%)</span></p>
+                                <p><strong>Balance:</strong> ${Math.abs(stats.highRisk - stats.lowRisk) / stats.total < 0.2 ? 'Balanced' : 'Imbalanced'}</p>
+                            </div>
+                        </div>
+                    </div>`;
+                resultDiv.innerHTML = mockDistribution;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: #dc3545;">Error analyzing distribution: ${error.message}</p>`;
+                console.error('Distribution analysis error:', error);
+            }
         }
     </script>
 </body>

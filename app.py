@@ -4,11 +4,145 @@ Main Flask Application for Stroke Warning System
 import json
 import csv
 import io
+import pickle
+import os
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Patient
 from config import config
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.svm import SVC
+from sklearn.naive_bayes import GaussianNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix,
+    classification_report,
+    roc_auc_score,
+)
+
+# Global variable to hold the trained model
+TRAINED_MODEL = None
+
+def load_trained_model():
+    """Load the latest trained model from disk"""
+    global TRAINED_MODEL
+    
+    model_dir = 'model'
+    metrics_path = os.path.join(model_dir, 'metrics.json')
+    
+    # Check if we have a deployed model
+    if not os.path.exists(metrics_path):
+        print("No model deployed. Using rule-based prediction.")
+        return None
+    
+    try:
+        # Read metrics to get the model filename
+        with open(metrics_path, 'r') as f:
+            metrics = json.load(f)
+        
+        model_filename = metrics.get('model_filename')
+        if not model_filename:
+            # Backward compatibility: try old format
+            algorithm = metrics.get('algorithm')
+            if algorithm:
+                model_filename = f'{algorithm}_model.pkl'
+            else:
+                print("No model filename specified in metrics.json")
+                return None
+        
+        model_path = os.path.join(model_dir, model_filename)
+        
+        if not os.path.exists(model_path):
+            print(f"Model file not found: {model_path}")
+            return None
+        
+        # Load the model
+        with open(model_path, 'rb') as f:
+            model_data = pickle.load(f)
+        
+        TRAINED_MODEL = model_data
+        algorithm = metrics.get('algorithm', 'Unknown')
+        accuracy = metrics.get('accuracy', 0)
+        print(f"? Loaded deployed model: {algorithm}")
+        print(f"  File: {model_filename}")
+        print(f"  Accuracy: {accuracy * 100:.2f}%")
+        return model_data
+        
+    except Exception as e:
+        print(f"Error loading trained model: {e}")
+        return None
+
+def preprocess_data_for_training(df):
+    """Preprocess and encode categorical variables for training"""
+    df = df.copy()
+    
+    # Handle missing values
+    numeric_cols = ['age', 'avg_glucose_level', 'bmi']
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = df[col].fillna(df[col].median())
+    
+    # Encode categorical columns
+    le = LabelEncoder()
+    categorical_columns = ['gender', 'ever_married', 'work_type', 'residence_type', 'smoking_status']
+    for col in categorical_columns:
+        if col in df.columns:
+            df[col] = df[col].astype(str)
+            df[col] = le.fit_transform(df[col])
+    
+    # Features/target split
+    X = df.drop('stroke', axis=1)
+    y = df['stroke'].astype(int)
+    
+    # Scale features
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    
+    return X_scaled, y, scaler, list(X.columns)
+
+def get_model_by_algorithm(algorithm):
+    """Return the appropriate model based on algorithm selection"""
+    models = {
+        'random_forest': RandomForestClassifier(
+            n_estimators=200,
+            max_depth=None,
+            random_state=42,
+            n_jobs=-1,
+            class_weight='balanced'
+        ),
+        'svm': SVC(
+            kernel='rbf',
+            random_state=42,
+            probability=True,
+            class_weight='balanced'
+        ),
+        'naive_bayes': GaussianNB(),
+        'gradient_boost': GradientBoostingClassifier(
+            n_estimators=100,
+            learning_rate=0.1,
+            max_depth=3,
+            random_state=42
+        ),
+        'logistic_regression': LogisticRegression(
+            random_state=42,
+            max_iter=1000,
+            class_weight='balanced'
+        )
+    }
+    
+    if algorithm not in models:
+        raise ValueError(f'Unknown algorithm: {algorithm}')
+    
+    return models[algorithm]
 
 def create_app(config_name='development'):
     """Application factory pattern"""
@@ -17,6 +151,9 @@ def create_app(config_name='development'):
     
     # Initialize extensions
     db.init_app(app)
+    
+    # Load trained model if available
+    trained_model_data = load_trained_model()
     
     # Add custom template filters
     @app.template_filter('tojson')
@@ -122,6 +259,12 @@ def create_app(config_name='development'):
         try:
             data = request.get_json()
             
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'message': 'No data provided'
+                }), 400
+            
             # Validate required fields
             required_fields = [
                 'name', 'age', 'gender', 'hypertension', 'heart_disease',
@@ -130,28 +273,80 @@ def create_app(config_name='development'):
             ]
             
             for field in required_fields:
-                if field not in data:
+                if field not in data or data[field] == '' or data[field] is None:
                     return jsonify({
                         'success': False,
-                        'message': f'Missing required field: {field}'
+                        'message': f'Missing or empty field: {field}'
                     }), 400
 
+            # Validate numeric fields
+            try:
+                age = int(data['age'])
+                hypertension = int(data['hypertension'])
+                heart_disease = int(data['heart_disease'])
+                avg_glucose_level = float(data['avg_glucose_level'])
+                bmi = float(data['bmi'])
+                
+                if age < 1 or age > 120:
+                    return jsonify({
+                        'success': False,
+                        'message': 'Age must be between 1 and 120'
+                    }), 400
+                
+                if hypertension not in [0, 1]:
+                    return jsonify({
+                        'success': False,
+                        'message': 'Hypertension must be 0 or 1'
+                    }), 400
+                
+                if heart_disease not in [0, 1]:
+                    return jsonify({
+                        'success': False,
+                        'message': 'Heart disease must be 0 or 1'
+                    }), 400
+                
+                if avg_glucose_level < 0:
+                    return jsonify({
+                        'success': False,
+                        'message': 'Average glucose level must be positive'
+                    }), 400
+                
+                if bmi < 0:
+                    return jsonify({
+                        'success': False,
+                        'message': 'BMI must be positive'
+                    }), 400
+                    
+            except (ValueError, TypeError) as e:
+                return jsonify({
+                    'success': False,
+                    'message': f'Invalid numeric value: {str(e)}'
+                }), 400
+
             # Make prediction using the rule-based predict_stroke function
-            prediction = predict_stroke(data)
+            prediction_data = {
+                'age': age,
+                'hypertension': hypertension,
+                'heart_disease': heart_disease,
+                'avg_glucose_level': avg_glucose_level,
+                'bmi': bmi,
+                'smoking_status': data['smoking_status']
+            }
+            prediction = predict_stroke(prediction_data)
             prediction_int = 1 if prediction == 'High Risk' else 0
             
             # Create new patient
             new_patient = Patient(
                 name=data['name'],
-                age=data['age'],
+                age=age,
                 gender=data['gender'],
-                hypertension=data['hypertension'],
-                heart_disease=data['heart_disease'],
+                hypertension=hypertension,
+                heart_disease=heart_disease,
                 ever_married=data['ever_married'],
                 work_type=data['work_type'],
                 residence_type=data['residence_type'],
-                avg_glucose_level=data['avg_glucose_level'],
-                bmi=data['bmi'],
+                avg_glucose_level=avg_glucose_level,
+                bmi=bmi,
                 smoking_status=data['smoking_status'],
                 stroke_prediction=prediction_int,
                 created_by=session['username']
@@ -163,7 +358,8 @@ def create_app(config_name='development'):
             return jsonify({
                 'success': True,
                 'message': 'Patient added successfully',
-                'prediction': prediction
+                'prediction': prediction,
+                'patient_id': new_patient.id
             })
             
         except Exception as e:
@@ -221,14 +417,15 @@ def create_app(config_name='development'):
             updatable = [
                 'name', 'age', 'gender', 'hypertension', 'heart_disease',
                 'ever_married', 'work_type', 'residence_type', 'avg_glucose_level',
-                'bmi', 'smoking_status'
+                'bmi', 'smoking_status', 'stroke_prediction'
             ]
 
+            prediction = None
             for key in updatable:
                 if key in data:
                     val = data.get(key)
                     # convert numeric fields
-                    if key in ('age', 'hypertension', 'heart_disease'):
+                    if key in ('age', 'hypertension', 'heart_disease', 'stroke_prediction'):
                         try:
                             setattr(patient, key, int(val) if val is not None and val != '' else None)
                         except (ValueError, TypeError):
@@ -241,9 +438,8 @@ def create_app(config_name='development'):
                     else:
                         setattr(patient, key, val)
 
-            # If stroke_prediction was provided, use that instead of recalculating
+            # If stroke_prediction was not manually provided, recalculate
             if 'stroke_prediction' not in data:
-                # No manual prediction provided, recalculate using the helper
                 patient_data = {
                     'age': patient.age or 0,
                     'hypertension': int(patient.hypertension) if patient.hypertension is not None else 0,
@@ -254,7 +450,10 @@ def create_app(config_name='development'):
                 }
                 prediction = predict_stroke(patient_data)
                 patient.stroke_prediction = 1 if prediction == 'High Risk' else 0
-            # else stroke_prediction was already set by the form data above
+            else:
+                # Convert the stored prediction to text for response
+                prediction = 'High Risk' if patient.stroke_prediction == 1 else 'Low Risk'
+            
             patient.updated_at = datetime.utcnow() if hasattr(patient, 'updated_at') else patient.created_at
 
             db.session.commit()
@@ -305,7 +504,18 @@ def create_app(config_name='development'):
         
         return jsonify(data)
 
-
+    @app.route('/data_scientist/export_data', methods=['GET'])
+    def data_scientist_export():
+        """Export all patient data as JSON for data scientist dashboard"""
+        if 'username' not in session or session['role'] != 'data_scientist':
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        try:
+            patients = Patient.query.all()
+            data = [patient.to_dict() for patient in patients]
+            return jsonify(data)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/api/export-data', methods=['POST'])
     def export_data():
@@ -313,8 +523,8 @@ def create_app(config_name='development'):
             return jsonify({'error': 'Unauthorized'}), 401
         
         try:
-            filters = request.json.get('filters', {})
-            format_type = request.json.get('format', 'json')
+            filters = request.json.get('filters', {}) if request.json else {}
+            format_type = request.json.get('format', 'json') if request.json else 'json'
             
             query = Patient.query
             
@@ -353,19 +563,342 @@ def create_app(config_name='development'):
                 
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+
+    @app.route('/data_scientist/train_model', methods=['POST'])
+    def train_model():
+        """Train machine learning model with specified configuration"""
+        if 'username' not in session or session['role'] != 'data_scientist':
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        try:
+            data = request.get_json()
+            algorithm = data.get('algorithm')
+            test_size = float(data.get('test_size', 20)) / 100
+            cv_folds = int(data.get('cross_validation', 5))
+            
+            if not algorithm:
+                return jsonify({'success': False, 'error': 'Algorithm not specified'}), 400
+            
+            # Load data from database
+            patients = Patient.query.filter(Patient.stroke_prediction.isnot(None)).all()
+            
+            if len(patients) < 50:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Insufficient data for training. Need at least 50 records, but only have {len(patients)}.'
+                }), 400
+            
+            # Prepare data
+            patient_data = []
+            for patient in patients:
+                patient_data.append({
+                    'age': patient.age,
+                    'gender': patient.gender,
+                    'hypertension': patient.hypertension,
+                    'heart_disease': patient.heart_disease,
+                    'ever_married': patient.ever_married,
+                    'work_type': patient.work_type,
+                    'residence_type': patient.residence_type,
+                    'avg_glucose_level': patient.avg_glucose_level,
+                    'bmi': patient.bmi,
+                    'smoking_status': patient.smoking_status,
+                    'stroke': int(patient.stroke_prediction)
+                })
+            
+            df = pd.DataFrame(patient_data)
+            
+            # Preprocess data
+            X, y, scaler, feature_names = preprocess_data_for_training(df)
+            
+            # Split data
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=test_size, random_state=42, stratify=y
+            )
+            
+            # Select and train model
+            model = get_model_by_algorithm(algorithm)
+            model.fit(X_train, y_train)
+            
+            # Make predictions
+            y_pred = model.predict(X_test)
+            
+            # Calculate metrics
+            metrics = {
+                'algorithm': algorithm,
+                'dataset_size': len(patients),
+                'training_size': len(X_train),
+                'test_size': len(X_test),
+                'test_size_percent': test_size * 100,
+                'accuracy': float(accuracy_score(y_test, y_pred)),
+                'precision': float(precision_score(y_test, y_pred, zero_division=0)),
+                'recall': float(recall_score(y_test, y_pred, zero_division=0)),
+                'f1_score': float(f1_score(y_test, y_pred, zero_division=0)),
+                'confusion_matrix': confusion_matrix(y_test, y_pred).tolist()
+            }
+            
+            # Calculate ROC-AUC if possible
+            if hasattr(model, 'predict_proba'):
+                try:
+                    y_proba = model.predict_proba(X_test)[:, 1]
+                    metrics['roc_auc'] = float(roc_auc_score(y_test, y_proba))
+                except:
+                    metrics['roc_auc'] = None
+            else:
+                metrics['roc_auc'] = None
+            
+            # Cross-validation
+            try:
+                cv_scores = cross_val_score(model, X_train, y_train, cv=cv_folds, scoring='accuracy')
+                metrics['cv_scores'] = cv_scores.tolist()
+                metrics['cv_mean'] = float(np.mean(cv_scores))
+                metrics['cv_std'] = float(np.std(cv_scores))
+            except Exception as e:
+                metrics['cv_scores'] = []
+                metrics['cv_mean'] = None
+                metrics['cv_std'] = None
+            
+            # Feature importances (if available)
+            if hasattr(model, 'feature_importances_'):
+                importances = model.feature_importances_
+                feature_importance = [
+                    {'feature': name, 'importance': float(imp)} 
+                    for name, imp in zip(feature_names, importances)
+                ]
+                feature_importance.sort(key=lambda x: x['importance'], reverse=True)
+                metrics['feature_importance'] = feature_importance[:10]  # Top 10
+            else:
+                metrics['feature_importance'] = []
+            
+            # Save model with unique timestamp
+            model_dir = 'model'
+            os.makedirs(model_dir, exist_ok=True)
+            
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            model_filename = f'{algorithm}_{timestamp}_model.pkl'
+            model_path = os.path.join(model_dir, model_filename)
+            
+            with open(model_path, 'wb') as f:
+                pickle.dump({
+                    'model': model,
+                    'scaler': scaler,
+                    'feature_names': feature_names
+                }, f)
+            
+            # Save metrics for this specific model
+            metrics['trained_at'] = datetime.utcnow().isoformat()
+            metrics['trained_by'] = session['username']
+            metrics['model_filename'] = model_filename
+            metrics['deployed'] = False
+            
+            # Load all models history
+            models_history_path = os.path.join(model_dir, 'models_history.json')
+            if os.path.exists(models_history_path):
+                with open(models_history_path, 'r') as f:
+                    models_history = json.load(f)
+            else:
+                models_history = []
+            
+            # Add this model to history
+            models_history.append(metrics)
+            
+            # Keep only last 20 models
+            models_history = models_history[-20:]
+            
+            # Save updated history
+            with open(models_history_path, 'w') as f:
+                json.dump(models_history, f, indent=2)
+            
+            # DO NOT auto-deploy - user must manually select
+            
+            return jsonify({
+                'success': True,
+                'message': 'Model trained successfully. Go to Model Management to deploy it.',
+                'metrics': metrics
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/data_scientist/list_models', methods=['GET'])
+    def list_models():
+        """List all trained models with their metrics"""
         if 'username' not in session or session['role'] != 'data_scientist':
             return jsonify({'error': 'Unauthorized'}), 401
         
-        patients = Patient.query.all()
-        data = [patient.to_dict() for patient in patients]
+        try:
+            model_dir = 'model'
+            models_history_path = os.path.join(model_dir, 'models_history.json')
+            
+            if not os.path.exists(models_history_path):
+                return jsonify({'models': []})
+            
+            with open(models_history_path, 'r') as f:
+                models_history = json.load(f)
+            
+            # Check which model is currently deployed
+            metrics_path = os.path.join(model_dir, 'metrics.json')
+            deployed_filename = None
+            if os.path.exists(metrics_path):
+                with open(metrics_path, 'r') as f:
+                    deployed_metrics = json.load(f)
+                    deployed_filename = deployed_metrics.get('model_filename')
+            
+            # Mark deployed model
+            for model in models_history:
+                model['is_deployed'] = (model.get('model_filename') == deployed_filename)
+            
+            # Sort by trained_at descending (newest first)
+            models_history.sort(key=lambda x: x.get('trained_at', ''), reverse=True)
+            
+            return jsonify({'models': models_history})
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/data_scientist/deploy_model', methods=['POST'])
+    def deploy_model():
+        """Deploy a specific trained model"""
+        if 'username' not in session or session['role'] != 'data_scientist':
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
         
-        return jsonify(data)
+        try:
+            data = request.get_json()
+            model_filename = data.get('model_filename')
+            
+            if not model_filename:
+                return jsonify({'success': False, 'error': 'Model filename not specified'}), 400
+            
+            model_dir = 'model'
+            model_path = os.path.join(model_dir, model_filename)
+            
+            if not os.path.exists(model_path):
+                return jsonify({'success': False, 'error': 'Model file not found'}), 404
+            
+            # Load the model to verify it works
+            with open(model_path, 'rb') as f:
+                model_data = pickle.load(f)
+            
+            # Load models history to get metrics
+            models_history_path = os.path.join(model_dir, 'models_history.json')
+            with open(models_history_path, 'r') as f:
+                models_history = json.load(f)
+            
+            # Find metrics for this model
+            model_metrics = None
+            for m in models_history:
+                if m.get('model_filename') == model_filename:
+                    model_metrics = m
+                    break
+            
+            if not model_metrics:
+                return jsonify({'success': False, 'error': 'Model metrics not found'}), 404
+            
+            # Mark this model as deployed
+            model_metrics['deployed'] = True
+            model_metrics['deployed_at'] = datetime.utcnow().isoformat()
+            model_metrics['deployed_by'] = session['username']
+            
+            # Unmark other models
+            for m in models_history:
+                if m.get('model_filename') != model_filename:
+                    m['deployed'] = False
+            
+            # Save updated history
+            with open(models_history_path, 'w') as f:
+                json.dump(models_history, f, indent=2)
+            
+            # Save as active metrics.json (for backward compatibility)
+            metrics_path = os.path.join(model_dir, 'metrics.json')
+            with open(metrics_path, 'w') as f:
+                json.dump(model_metrics, f, indent=2)
+            
+            # Load model into memory
+            global TRAINED_MODEL
+            TRAINED_MODEL = model_data
+            
+            return jsonify({
+                'success': True,
+                'message': f'Model deployed successfully. Now using {model_metrics.get("algorithm")} for predictions.',
+                'metrics': model_metrics
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/data_scientist/delete_model', methods=['POST'])
+    def delete_model():
+        """Delete a trained model"""
+        if 'username' not in session or session['role'] != 'data_scientist':
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        try:
+            data = request.get_json()
+            model_filename = data.get('model_filename')
+            
+            if not model_filename:
+                return jsonify({'success': False, 'error': 'Model filename not specified'}), 400
+            
+            model_dir = 'model'
+            
+            # Check if this model is currently deployed
+            metrics_path = os.path.join(model_dir, 'metrics.json')
+            if os.path.exists(metrics_path):
+                with open(metrics_path, 'r') as f:
+                    deployed_metrics = json.load(f)
+                if deployed_metrics.get('model_filename') == model_filename:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Cannot delete currently deployed model. Deploy another model first.'
+                    }), 400
+            
+            # Delete model file
+            model_path = os.path.join(model_dir, model_filename)
+            if os.path.exists(model_path):
+                os.remove(model_path)
+            
+            # Remove from history
+            models_history_path = os.path.join(model_dir, 'models_history.json')
+            if os.path.exists(models_history_path):
+                with open(models_history_path, 'r') as f:
+                    models_history = json.load(f)
+                
+                models_history = [m for m in models_history if m.get('model_filename') != model_filename]
+                
+                with open(models_history_path, 'w') as f:
+                    json.dump(models_history, f, indent=2)
+            
+            return jsonify({
+                'success': True,
+                'message': 'Model deleted successfully'
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
 
     def predict_stroke(patient_data):
         """
-        Predict stroke risk based on patient data using a rule-based system.
+        Predict stroke risk based on patient data.
+        Uses trained ML model if available, falls back to rule-based system.
         """
-
+        global TRAINED_MODEL
+        
+        # Try ML model first
+        if TRAINED_MODEL is not None:
+            try:
+                return predict_with_ml_model(patient_data, TRAINED_MODEL)
+            except Exception as e:
+                print(f"ML prediction failed: {e}. Falling back to rule-based.")
+                # Fall through to rule-based
+        
         # Rule-based system as fallback
         risk_score = 0
         
@@ -406,6 +939,43 @@ def create_app(config_name='development'):
 
         # Determine risk level: only High Risk or Low Risk (no Medium)
         return 'High Risk' if probability > 0.5 else 'Low Risk'
+    
+    def predict_with_ml_model(patient_data, model_data):
+        """
+        Make prediction using the trained ML model
+        """
+        model = model_data['model']
+        scaler = model_data['scaler']
+        feature_names = model_data['feature_names']
+        
+        # Create DataFrame with patient data
+        df = pd.DataFrame([patient_data])
+        
+        # Ensure we have all required features
+        for feature in feature_names:
+            if feature not in df.columns:
+                df[feature] = 0  # Default value for missing features
+        
+        # Encode categorical variables
+        le = LabelEncoder()
+        categorical_columns = ['gender', 'ever_married', 'work_type', 'residence_type', 'smoking_status']
+        for col in categorical_columns:
+            if col in df.columns:
+                df[col] = df[col].astype(str)
+                # Fit and transform - in production you'd save the encoders too
+                df[col] = le.fit_transform(df[col])
+        
+        # Select and order features
+        X = df[feature_names]
+        
+        # Scale features
+        X_scaled = scaler.transform(X)
+        
+        # Make prediction
+        prediction = model.predict(X_scaled)[0]
+        
+        # Convert to text
+        return 'High Risk' if prediction == 1 else 'Low Risk'
     
     return app
 
