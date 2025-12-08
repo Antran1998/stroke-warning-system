@@ -63,8 +63,7 @@ class Patient(db.Model):
             'avg_glucose_level': self.avg_glucose_level,
             'bmi': self.bmi,
             'smoking_status': self.smoking_status,
-            'stroke_prediction': self._stroke_str(),
-            
+            'stroke_prediction': self.stroke_prediction,
             'created_at': self.created_at.isoformat()
         }
 
@@ -84,7 +83,6 @@ class Patient(db.Model):
             'bmi': self.bmi,
             'smoking_status': self.smoking_status,
             'stroke_prediction': self._stroke_str(),
-            
             'created_by': self.created_by,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S')
         }
