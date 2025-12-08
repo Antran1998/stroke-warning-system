@@ -1,0 +1,105 @@
+@startuml Stroke Warning System Use Cases - Simplified
+
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor<<Doctor>> #E3F2FD
+    BorderColor<<Doctor>> #1976D2
+    BackgroundColor<<DataScientist>> #FFF3E0
+    BorderColor<<DataScientist>> #F57C00
+}
+
+left to right direction
+
+' Actors
+actor "Doctor/Physician" as Doctor
+actor "Data Scientist/\nML Engineer" as DataScientist
+
+' System Boundary
+rectangle "Stroke Warning System" {
+    
+    ' ===== DOCTOR USE CASES =====
+    package "Doctor Module" #E3F2FD {
+        
+        usecase "Authentication &\nSession Management" as UC_Doctor_Auth <<Doctor>>
+        
+        usecase "Patient Management\n----\n• Add New Patient\n• View Patient Records\n• View Patient Details\n• Edit Patient Information" as UC_Patient_Mgmt <<Doctor>>
+        
+        usecase "Risk Assessment\n----\n• Automated Stroke Prediction\n• View High Risk Patients\n• Track Pending Cases" as UC_Risk_Assessment <<Doctor>>
+        
+    }
+    
+    ' ===== DATA SCIENTIST USE CASES =====
+    package "Data Scientist Module" #FFF3E0 {
+        
+        usecase "Authentication" as UC_DS_Auth <<DataScientist>>
+        
+        usecase "Data Management\n----\n• Export Data (JSON/CSV)\n• Filtered Data Export\n• View Dashboard Statistics" as UC_Data_Mgmt <<DataScientist>>
+        
+        usecase "Data Quality Analysis\n----\n• Analyze Dataset Statistics\n• Check Missing Values\n• Detect Outliers\n• Feature Distribution" as UC_Data_Quality <<DataScientist>>
+        
+        usecase "Model Training\n----\n• Configure Parameters\n• Train ML Model\n• View Training Results\n• Compare Algorithms" as UC_Model_Training <<DataScientist>>
+        
+        usecase "Model Deployment\n----\n• View All Models\n• Deploy Model\n• Check Model Status\n• Reload Model\n• Delete Model\n• Model Rollback" as UC_Model_Deploy <<DataScientist>>
+        
+        usecase "Analytics & Insights\n----\n• Feature Importance\n• Preprocessing Pipeline\n• Access Analytics API\n• Track Model History" as UC_Analytics <<DataScientist>>
+        
+    }
+}
+
+' ===== ACTOR ASSOCIATIONS =====
+Doctor --> UC_Doctor_Auth
+Doctor --> UC_Patient_Mgmt
+Doctor --> UC_Risk_Assessment
+
+DataScientist --> UC_DS_Auth
+DataScientist --> UC_Data_Mgmt
+DataScientist --> UC_Data_Quality
+DataScientist --> UC_Model_Training
+DataScientist --> UC_Model_Deploy
+DataScientist --> UC_Analytics
+
+' ===== KEY RELATIONSHIPS =====
+UC_Patient_Mgmt ..> UC_Risk_Assessment : <<include>>
+UC_Model_Training ..> UC_Data_Quality : <<include>>
+UC_Model_Deploy ..> UC_Model_Training : <<extend>>
+UC_Analytics ..> UC_Model_Training : <<extend>>
+
+' Critical Cross-Module Dependency
+UC_Risk_Assessment ..> UC_Model_Deploy : <<uses>>
+
+' ===== NOTES =====
+note right of UC_Risk_Assessment
+  **Uses deployed ML model**
+  Falls back to rule-based
+  prediction if no model deployed
+end note
+
+note right of UC_Model_Deploy
+  **Deployed model serves**
+  all doctor predictions
+  in real-time
+end note
+
+note bottom of "Stroke Warning System"
+  **Simplified Use Case Diagram**
+  ??????????????????????????????????????
+  **Doctor Workflow:** Patient management ? Risk assessment
+  **Data Scientist Workflow:** Data analysis ? Model training ? Deployment
+  **Key Integration:** Deployed models power clinical predictions
+end note
+
+legend right
+  **Legend**
+  |= Symbol |= Meaning |
+  | <<include>> | Mandatory dependency |
+  | <<extend>> | Optional extension |
+  | <<uses>> | Cross-module dependency |
+  
+  **Grouped Use Cases**
+  Each major use case contains
+  multiple sub-functionalities
+  listed under it
+endlegend
+
+@enduml
