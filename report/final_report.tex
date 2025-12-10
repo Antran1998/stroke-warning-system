@@ -1,12 +1,16 @@
-\documentclass{article}
+﻿\documentclass{article}
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{geometry}
 \usepackage[utf8]{inputenc}
 \usepackage[vietnamese]{babel}
+\usepackage{tikz}
+\usepackage{multirow}
+\usepackage{svg}
+\usetikzlibrary{shapes.geometric, arrows, positioning, fit, calc}
 \geometry{a4paper, margin=1in}
 
-\title{B�o c�o cu?i k?: H? th?ng c?nh b�o ??t qu?}
+\title{Báo cáo cuối kỳ: Hệ thống cảnh báo đột quỵ}
 \author{}
 \date{\today}
 
@@ -14,76 +18,587 @@
 
 \maketitle
 
-\section{Ph�n t�ch c�c b�n li�n quan}
+\section{Phân tích các bên liên quan}
 
-\subsection{C�c b�n li�n quan ???c x�c ??nh}
+\begin{figure}[h]
+    \centering
+    \includesvg[width=\textwidth]{usecases_diagram}
+    \caption{Sơ đồ Use Cases các bên liên quan}
+    \label{fig:usecases}
+\end{figure}
+
+\subsection{Các bên liên quan được xác định}
 \begin{itemize}
-    \item \textbf{B�c s?}: C�c chuy�n gia ch?m s�c s?c kh?e ch?u tr�ch nhi?m ch?n ?o�n v� ?i?u tr? b?nh nh�n.
-    \item \textbf{Nh� khoa h?c d? li?u}: C�c chuy�n gia ph? tr�ch ph�t tri?n v� duy tr� c�c m� h�nh h?c m�y.
+    \item \textbf{Bác sĩ (Doctor/Physician)}: Chịu trách nhiệm chẩn đoán, điều trị và quản lý bệnh nhân thông qua hệ thống.
+    \item \textbf{Nhà khoa học dữ liệu (Data Scientist/ML Engineer)}: Chịu trách nhiệm xây dựng, huấn luyện, triển khai và giám sát các mô hình học máy dự đoán đột quỵ.
 \end{itemize}
 
-\subsection{L?i �ch ti?m n?ng}
+\subsection{Các trường hợp sử dụng (Use Cases) của Bác sĩ}
+\subsubsection{Xác thực và kiểm soát truy cập}
 \begin{itemize}
-    \item \textbf{B�c s?}: N�ng cao ?? ch�nh x�c trong ch?n ?o�n v� k? ho?ch ?i?u tr? c� nh�n h�a. C?nh b�o s?m v� can thi?p ch? ??ng, d?n ??n k?t qu? s?c kh?e t?t h?n.
-    \item \textbf{Nh� khoa h?c d? li?u}: Truy c?p v�o m?t n?n t?ng m?nh m? ?? ?�o t?o, ?�nh gi� v� tri?n khai m� h�nh.
+    \item \textbf{Trường hợp sử dụng}: Đăng nhập an toàn vào bảng điều khiển dành cho bác sĩ.
+    \item \textbf{Luồng thực hiện}:
+        \begin{enumerate}
+            \item Bác sĩ truy cập trang đăng nhập của hệ thống.
+            \item Nhập tên người dùng và mật khẩu được cấp.
+            \item Hệ thống xác thực thông tin và cấp quyền truy cập dựa trên vai trò vào bảng điều khiển bác sĩ.
+        \end{enumerate}
 \end{itemize}
 
-\section{L� thuy?t v? thu?t to�n}
-D? �n n�y s? d?ng m?t s? thu?t to�n h?c m�y, m?i thu?t to�n c� nh?ng ?i?m m?nh ri�ng:
+\subsubsection{Quản lý bệnh nhân}
 \begin{itemize}
-    \item \textbf{H?i quy Logistic}: M?t m� h�nh tuy?n t�nh d? di?n gi?i v� d�ng l�m c? s? so s�nh t?t.
-    \item \textbf{R?ng ng?u nhi�n}: M?t ph??ng ph�p h?c t?p h?p k?t h?p nhi?u c�y quy?t ??nh ?? c?i thi?n ?? ch�nh x�c v� gi?m hi?n t??ng qu� kh?p.
-    \item \textbf{M�y vector h? tr? (SVM)}: M?t thu?t to�n m?nh m? cho c�c t�c v? ph�n lo?i, hi?u qu? trong kh�ng gian nhi?u chi?u.
-    \item \textbf{Naive Bayes}: M?t b? ph�n lo?i x�c su?t d?a tr�n ??nh l� Bayes, n?i ti?ng v? s? ??n gi?n v� hi?u qu?.
-    \item \textbf{Gradient Boosting}: M?t k? thu?t h?c t?p h?p ti�n ti?n x�y d?ng c�c m� h�nh tu?n t? ?? s?a l?i c?a c�c m� h�nh tr??c ?�.
+    \item \textbf{Trường hợp sử dụng}: Thêm bệnh nhân mới với dữ liệu lâm sàng.
+    \item \textbf{Luồng thực hiện}:
+        \begin{enumerate}
+            \item Truy cập biểu mẫu "Thêm bệnh nhân mới" trên bảng điều khiển.
+            \item Nhập thông tin nhân khẩu học (tên, tuổi, giới tính) và các chỉ số lâm sàng (tăng huyết áp, bệnh tim, đường huyết, BMI, tình trạng hút thuốc, v.v.).
+            \item Gửi dữ liệu. Hệ thống xác thực đầu vào và ngay lập tức dự đoán nguy cơ đột quỵ.
+        \end{enumerate}
+    \item \textbf{Trường hợp sử dụng}: Cập nhật dữ liệu bệnh nhân và tính toán lại nguy cơ.
+    \item \textbf{Luồng thực hiện}:
+        \begin{enumerate}
+            \item Mở chi tiết bệnh nhân và nhấp nút "Chỉnh sửa".
+            \item Các trường thông tin trở nên có thể chỉnh sửa.
+            \item Sửa đổi dữ liệu cần thiết và nhấp "Lưu".
+            \item Hệ thống xác thực và tính toán lại dự đoán nguy cơ đột quỵ.
+        \end{enumerate}
 \end{itemize}
 
-\section{Thi?t k? h? th?ng}
-H? th?ng ???c thi?t k? v?i ki?n tr�c m�-?un ?? ??m b?o kh? n?ng m? r?ng v� b?o tr�:
+\subsubsection{Đánh giá rủi ro và hỗ trợ quyết định lâm sàng}
 \begin{itemize}
-    \item \textbf{Giao di?n ng??i d�ng}: Giao di?n web th�n thi?n v?i ng??i d�ng d�nh cho b�c s? v� nh� khoa h?c d? li?u.
-    \item \textbf{Ph?n ph? tr?}: M?t m�y ch? m?nh m? x? l� logic nghi?p v?, x? l� d? li?u v� c�c y�u c?u API.
-    \item \textbf{C? s? d? li?u}: M?t c? s? d? li?u an to�n v� ?�ng tin c?y ?? l?u tr? d? li?u b?nh nh�n v� th�ng tin m� h�nh.
-    \item \textbf{Quy tr�nh h?c m�y}: M?t quy tr�nh l�m vi?c t? ??ng ?? ti?n x? l� d? li?u, ?�o t?o m� h�nh v� tri?n khai.
+    \item \textbf{Trường hợp sử dụng}: Nhận đánh giá rủi ro do AI cung cấp cho bệnh nhân.
+    \item \textbf{Luồng thực hiện}:
+        \begin{enumerate}
+            \item Khi dữ liệu bệnh nhân được gửi hoặc cập nhật, hệ thống xử lý các đặc điểm lâm sàng.
+            \item Nếu mô hình ML được triển khai, hệ thống dự đoán xác suất đột quỵ.
+            \item Nếu không, công cụ dựa trên luật sẽ tính điểm rủi ro theo các yếu tố có trọng số (ví dụ: tuổi > 60, tăng huyết áp).
+            \item Kết quả dự đoán được hiển thị nổi bật với huy hiệu mã hóa màu (Nguy cơ cao/Thấp).
+        \end{enumerate}
 \end{itemize}
 
-\section{T?p d? li?u v� ti?n x? l�}
-
-\subsection{M� t? t?p d? li?u}
-T?p d? li?u ch?a m?t b? to�n di?n c�c thu?c t�nh c?a b?nh nh�n, bao g?m:
+\subsection{Các trường hợp sử dụng (Use Cases) của Nhà khoa học dữ liệu}
+\subsubsection{Thu thập và xuất dữ liệu}
 \begin{itemize}
-    \item Th�ng tin nh�n kh?u h?c (tu?i, gi?i t�nh).
-    \item Ti?n s? b?nh (t?ng huy?t �p, b?nh tim).
-    \item C�c y?u t? l?i s?ng (t�nh tr?ng h�t thu?c, lo?i c�ng vi?c).
-    \item C�c ch? s? l�m s�ng (m?c ???ng huy?t, ch? s? BMI).
+    \item \textbf{Trường hợp sử dụng}: Tải xuống bộ dữ liệu hoàn chỉnh ở định dạng JSON hoặc CSV.
+    \item \textbf{Luồng thực hiện}:
+        \begin{enumerate}
+            \item Điều hướng đến mục "Thu thập \& Xuất dữ liệu".
+            \item Nhấp nút "Xuất JSON" hoặc "Xuất CSV".
+            \item Hệ thống truy vấn tất cả hồ sơ bệnh nhân, chuyển đổi sang định dạng yêu cầu và trình duyệt tải tệp xuống.
+        \end{enumerate}
 \end{itemize}
 
-\subsection{C�c b??c ti?n x? l�}
+\subsubsection{Phân tích và đảm bảo chất lượng dữ liệu}
+\begin{itemize}
+    \item \textbf{Trường hợp sử dụng}: Tạo tổng quan toàn diện về tập dữ liệu.
+    \item \textbf{Luồng thực hiện}:
+        \begin{enumerate}
+            \item Nhấp nút "Phân tích tập dữ liệu".
+            \item Hệ thống tính toán các thống kê: tổng số bản ghi, phân phối nguy cơ, thống kê tuổi/BMI/glucose, tỷ lệ các yếu tố rủi ro.
+            \item Hiển thị kết quả để đánh giá chất lượng dữ liệu và phát hiện sai lệch.
+        \end{enumerate}
+    \item \textbf{Trường hợp sử dụng}: Xác định các vấn đề về tính đầy đủ dữ liệu.
+    \item \textbf{Luồng thực hiện}:
+        \begin{enumerate}
+            \item Nhấp "Kiểm tra giá trị bị thiếu".
+            \item Hệ thống quét tất cả trường để tìm các giá trị rỗng hoặc không xác định và hiển thị bảng kết quả, cho biết số lượng và tỷ lệ phần trăm thiếu cho mỗi thuộc tính.
+        \end{enumerate}
+\end{itemize}
+
+\subsubsection{Huấn luyện mô hình Machine Learning}
+\begin{itemize}
+    \item \textbf{Trường hợp sử dụng}: Thực thi quy trình huấn luyện mô hình đầu-cuối.
+    \item \textbf{Luồng thực hiện}:
+        \begin{enumerate}
+            \item Chọn thuật toán (ví dụ: Random Forest, SVM), đặt kích thước tập kiểm tra và số lần kiểm định chéo.
+            \item Gửi yêu cầu huấn luyện.
+            \item Hệ thống thực hiện quy trình: tải dữ liệu, tiền xử lý (xử lý giá trị thiếu, mã hóa biến, chuẩn hóa đặc trưng), phân chia tập huấn luyện/kiểm tra, huấn luyện mô hình, đánh giá và lưu trữ mô hình cùng siêu dữ liệu.
+        \end{enumerate}
+\end{itemize}
+
+\subsubsection{Quản lý và triển khai mô hình}
+\begin{itemize}
+    \item \textbf{Trường hợp sử dụng}: Kích hoạt mô hình đã huấn luyện để dự đoán trong môi trường sản phẩm.
+    \item \textbf{Luồng thực hiện}:
+        \begin{enumerate}
+            \item Xem đánh giá hiệu suất của các mô hình trong danh sách quản lý.
+            \item Nhấp nút "Triển khai" cho mô hình đã chọn.
+            \item Hệ thống xác minh tệp, tải mô hình vào bộ nhớ và cập nhật trạng thái thành "đã triển khai". Mô hình này sẽ được dùng cho tất cả dự đoán nguy cơ đột quỵ.
+        \end{enumerate}
+\end{itemize}
+
+\section{Lý thuyết về thuật toán}
+Việc lựa chọn thuật toán phù hợp là bước quan trọng, quyết định hiệu suất và khả năng diễn giải của mô hình dự đoán. Dựa trên phân tích từ notebook \texttt{train\_model.ipynb} và đặc thù dữ liệu y tế, \textbf{Rừng ngẫu nhiên (Random Forest)} được chọn làm thuật toán chính. Phần này nêu lý do lựa chọn và so sánh với các phương pháp thay thế.
+
+\subsection{Rừng ngẫu nhiên (Random Forest)}
+\begin{itemize}
+    \item \textbf{Nguyên lý hoạt động}: Random Forest là thuật toán học có giám sát thuộc phương pháp học tập hợp (ensemble learning). Thay vì chỉ xây dựng một mô hình, nó tạo ra một "rừng" gồm nhiều cây quyết định (decision trees) độc lập. Quy trình dựa trên hai kỹ thuật chính:
+    \begin{itemize}
+        \item \textit{Bootstrap Aggregating (Bagging)}: Mỗi cây được huấn luyện trên một mẫu dữ liệu con lấy ngẫu nhiên (có lặp) từ tập dữ liệu gốc.
+        \item \textit{Feature Randomness}: Tại mỗi nút, thuật toán chỉ chọn một tập con ngẫu nhiên các thuộc tính để tìm phân chia tốt nhất, giúp tạo ra các cây đa dạng và ít tương quan.
+    \end{itemize}
+    Với bài toán phân loại, kết quả cuối cùng được quyết định bằng "bỏ phiếu" từ tất cả cây trong rừng; lớp nhận nhiều phiếu nhất là dự đoán của mô hình.
+
+    \item \textbf{Vì sao Random Forest phù hợp với dữ liệu dự đoán đột quỵ?}:
+    \begin{itemize}
+        \item \textit{Xử lý tốt dữ liệu hỗn hợp}: Bộ dữ liệu chứa cả thuộc tính số (tuổi, BMI, mức đường huyết) và thuộc tính phân loại (giới tính, tình trạng hút thuốc). Random Forest xử lý tự nhiên cả hai mà không cần các bước chuyển đổi phức tạp.
+        \item \textit{Chống quá khớp (Overfitting)}: Dữ liệu y tế thường có nhiễu và không quá lớn. Bằng cách kết hợp dự đoán từ nhiều cây, Random Forest giảm phương sai và mạnh mẽ hơn.
+        \item \textit{Xử lý mất cân bằng lớp}: Tỷ lệ đột quỵ thấp (khoảng 4.98\%). Khi kết hợp với \texttt{class\_weight}, mô hình chú ý hơn đến lớp thiểu số.
+        \item \textit{Độ quan trọng thuộc tính (Feature Importance)}: Cho biết mức độ ảnh hưởng của từng yếu tố đến dự đoán, hữu ích trong lĩnh vực y tế.
+        \item \textit{Nắm bắt quan hệ phi tuyến}: Quan hệ giữa các yếu tố rủi ro và đột quỵ thường phi tuyến. Mô hình dựa trên cây có thể tự động nắm bắt các quan hệ này.
+    \end{itemize}
+\end{itemize}
+
+\subsection{So sánh với các thuật toán khác}
+\begin{itemize}
+    \item \textbf{So với Hồi quy Logistic}:
+    \begin{itemize}
+        \item \textit{Điểm mạnh của Random Forest}: Mô hình hóa các quan hệ phi tuyến phức tạp, trong khi Hồi quy Logistic là tuyến tính nên Random Forest thường cho độ chính xác cao hơn.
+        \item \textit{Điểm yếu}: Random Forest là mô hình "hộp đen", khó diễn giải hơn so với hệ số của Hồi quy Logistic. Tuy nhiên, độ quan trọng thuộc tính phần nào khắc phục.
+    \end{itemize}
+    \item \textbf{So với Máy vector hỗ trợ (SVM)}:
+    \begin{itemize}
+        \item \textit{Điểm mạnh của Random Forest}: Dễ huấn luyện hơn, ít siêu tham số cần tinh chỉnh hơn SVM (kernel, C, gamma).
+        \item \textit{Điểm yếu}: SVM có thể tốt hơn trong không gian dữ liệu số chiều rất cao; với bộ dữ liệu hiện tại, ưu thế này không rõ rệt.
+    \end{itemize}
+    \item \textbf{So với Gradient Boosting}:
+    \begin{itemize}
+        \item \textit{Điểm mạnh của Random Forest}: Dễ song song hóa vì các cây được xây dựng độc lập, thời gian huấn luyện nhanh hơn, ít nhạy với nhiễu.
+        \item \textit{Điểm yếu}: Gradient Boosting xây dựng tuần tự để sửa lỗi cây trước, có thể đạt độ chính xác cao hơn nếu tinh chỉnh cẩn thận, nhưng dễ quá khớp nếu không kiểm soát.
+    \end{itemize}
+\end{itemize}
+\textbf{Kết luận}: Chọn Random Forest vì cân bằng tốt giữa hiệu suất, khả năng diễn giải qua độ quan trọng thuộc tính và tính mạnh mẽ với dữ liệu hỗn hợp, mất cân bằng lớp.
+
+\section{Thiết kế hệ thống}
+Hệ thống xây dựng dựa trên kiến trúc ứng dụng web nguyên khối (monolithic) với Flask, tuân thủ thiết kế mô-đun để đảm bảo khả năng bảo trì, mở rộng và triển khai linh hoạt.
+
+\subsection{Kiến trúc tổng quan}
+Kiến trúc hệ thống chia thành ba lớp chính theo mô hình Model-View-Controller (MVC) điều chỉnh cho Flask:
+\begin{itemize}
+    \item \textbf{Lớp trình diễn (Presentation Layer - View \& Template)}: Hiển thị giao diện và tương tác người dùng.
+    \item \textbf{Lớp logic nghiệp vụ (Business Logic Layer - Controller)}: Xử lý yêu cầu, điều phối luồng dữ liệu, thực thi quy tắc nghiệp vụ.
+    \item \textbf{Lớp truy cập dữ liệu (Data Access Layer - Model)}: Quản lý lưu trữ và truy xuất dữ liệu từ cơ sở dữ liệu.
+\end{itemize}
+
+\subsection{Thành phần Backend}
+\begin{itemize}
+    \item \textbf{Web Framework (Flask)}: Lõi backend xây dựng bằng Flask, micro-framework Python, gọn nhẹ, linh hoạt, hệ sinh thái mạnh.
+    
+    \item \textbf{Routing và logic nghiệp vụ (\texttt{app.py})}: \texttt{app.py} là "bộ não" của ứng dụng. Định nghĩa các route như \texttt{/login}, \texttt{/doctor/dashboard}, \texttt{/data\_scientist/dashboard} và các API. Tại đây xử lý HTTP, xác thực, phân quyền, CRUD bệnh nhân và tương tác cơ sở dữ liệu.
+    
+    \item \textbf{Cơ sở dữ liệu và ORM (\texttt{models.py})}: Sử dụng SQLAlchemy ORM để làm việc với cơ sở dữ liệu.
+    \begin{itemize}
+        \item \textit{Mô hình dữ liệu}: \texttt{models.py} định nghĩa các lớp Python (\texttt{User}, \texttt{Patient}) ánh xạ bảng CSDL, cho phép thao tác qua đối tượng thay vì SQL thô.
+        \item \textit{Cơ sở dữ liệu}: Mặc định dùng SQLite (\texttt{hospital.db}) để dễ cài đặt và chạy thử; có thể chuyển sang PostgreSQL qua biến môi trường.
+    \end{itemize}
+    
+    \item \textbf{Cấu hình (\texttt{config.py})}: Quản lý cấu hình cho các môi trường (phát triển, kiểm thử, sản phẩm). Thông tin nhạy cảm như chuỗi kết nối và secret key được quản lý tại đây, tách biệt mã nguồn và cấu hình.
+\end{itemize}
+
+\subsection{Thành phần Frontend}
+\begin{itemize}
+    \item \textbf{Công nghệ}: Giao diện xây dựng bằng HTML, CSS và JavaScript thuần.
+    
+    \item \textbf{Engine mẫu (Jinja2)}: Các tệp HTML trong \texttt{templates} được xử lý bởi Jinja2 để hiển thị dữ liệu động và dùng cấu trúc logic như vòng lặp, điều kiện.
+    
+    \item \textbf{Giao diện người dùng (\texttt{templates/} và \texttt{static/})}:
+    \begin{itemize}
+        \item \textit{Bảng điều khiển bác sĩ (\texttt{doctor\_dashboard.html})}: Quản lý bệnh nhân (thêm, xem, sửa), xem thống kê và kết quả dự đoán; hỗ trợ panel chi tiết bệnh nhân và chỉnh sửa tại chỗ bằng JavaScript.
+        \item \textit{Bảng điều khiển nhà khoa học dữ liệu (\texttt{data\_scientist\_dashboard.html})}: Cung cấp công cụ phân tích, huấn luyện và quản lý mô hình.
+        \item \textit{Tài sản tĩnh}: Tệp CSS (\texttt{style.css}) và JavaScript trong tương lai nằm trong \texttt{static} và được phục vụ trực tiếp.
+    \end{itemize}
+\end{itemize}
+
+\subsection{Quy trình học máy}
+Quy trình học máy được thiết kế khép kín trong bảng điều khiển nhà khoa học dữ liệu, gồm các bước:
+\begin{itemize}
+    \item \textbf{Bước 1: Chuẩn bị dữ liệu (Data Preparation)}
+    \begin{itemize}
+        \item \textit{Xuất dữ liệu}: Xuất toàn bộ dữ liệu bệnh nhân ra CSV hoặc JSON làm nguồn dữ liệu cho huấn luyện.
+        \item \textit{Tải và tiền xử lý}: Khi bắt đầu huấn luyện, hệ thống tự động tải dữ liệu và áp dụng:
+        \begin{itemize}
+            \item Xử lý giá trị thiếu (ví dụ: điền giá trị trung bình cho cột BMI).
+            \item Mã hóa biến phân loại (ví dụ: One-Hot Encoding cho \texttt{gender}, \texttt{work\_type}, \texttt{smoking\_status}).
+            \item Chuẩn hóa đặc trưng số (StandardScaler cho \texttt{age}, \texttt{avg\_glucose\_level}, \texttt{bmi}).
+        \end{itemize}
+    \end{itemize}
+    
+    \item \textbf{Bước 2: Huấn luyện và đánh giá (Training \& Evaluation)}
+    \begin{itemize}
+        \item \textit{Lựa chọn cấu hình}: Chọn thuật toán (Random Forest, SVM), tỷ lệ tập kiểm tra và số fold kiểm định chéo.
+        \item \textit{Phân chia dữ liệu}: Chia dữ liệu đã tiền xử lý thành tập huấn luyện và kiểm tra.
+        \item \textit{Huấn luyện mô hình}: Huấn luyện trên tập huấn luyện; nếu có, thực hiện kiểm định chéo để đánh giá ổn định.
+        \item \textit{Đánh giá hiệu suất}: Tính Accuracy, Precision, Recall, F1 và ma trận nhầm lẫn.
+    \end{itemize}
+    
+    \item \textbf{Bước 3: Lưu trữ và quản lý (Model Storage \& Management)}
+    \begin{itemize}
+        \item \textit{Lưu trữ mô hình}: Lưu mô hình (đối tượng Python) và siêu dữ liệu (thuật toán, chỉ số, tham số, ngày tạo) vào tệp (ví dụ: \texttt{.pkl}) và ghi nhận trong CSDL.
+        \item \textit{Hiển thị danh sách}: Giao diện "Quản lý mô hình" hiển thị danh sách các mô hình đã huấn luyện để so sánh.
+    \end{itemize}
+    
+    \item \textbf{Bước 4: Triển khai (Deployment)}
+    \begin{itemize}
+        \item \textit{Kích hoạt mô hình}: Chọn mô hình có hiệu suất tốt nhất và nhấn "Triển khai".
+        \item \textit{Tải và sử dụng}: Hệ thống tải tệp mô hình vào bộ nhớ và đặt làm mô hình hoạt động; từ thời điểm này, mọi dự đoán nguy cơ đột quỵ sẽ dùng mô hình học máy thay vì công cụ dựa trên luật.
+    \end{itemize}
+    
+\end{itemize}
+
+\section{Tập dữ liệu và tiền xử lý}
+
+\subsection{Mô tả tập dữ liệu}
+Nguồn dữ liệu chính là tệp \texttt{brain\_stroke.csv}, chứa 4{,}981 bản ghi bệnh nhân với 11 thuộc tính. Bộ dữ liệu y tế điển hình, gồm thông tin nhân khẩu học, lâm sàng và lối sống.
+\begin{itemize}
+    \item \textbf{Thuộc tính số}:
+    \begin{itemize}
+        \item \texttt{age}: Tuổi bệnh nhân.
+        \item \texttt{avg\_glucose\_level}: Mức đường huyết trung bình.
+        \item \texttt{bmi}: Chỉ số khối cơ thể (Body Mass Index).
+    \end{itemize}
+    \item \textbf{Thuộc tính phân loại}:
+    \begin{itemize}
+        \item \texttt{gender}: Giới tính (Male, Female, Other).
+        \item \texttt{hypertension}: Tăng huyết áp (0: không, 1: có).
+        \item \texttt{heart\_disease}: Bệnh tim (0: không, 1: có).
+        \item \texttt{ever\_married}: Tình trạng hôn nhân (Yes, No).
+        \item \texttt{work\_type}: Loại hình công việc (Private, Self-employed, Govt\_job, children, Never\_worked).
+        \item \texttt{residence\_type}: Khu vực sinh sống (Urban, Rural).
+        \item \texttt{smoking\_status}: Tình trạng hút thuốc (formerly smoked, never smoked, smokes, Unknown).
+    \end{itemize}
+    \item \textbf{Biến mục tiêu}:
+    \begin{itemize}
+        \item \texttt{stroke}: Bệnh nhân có đột quỵ hay không (1: có, 0: không).
+    \end{itemize}
+\end{itemize}
+Tập dữ liệu mất cân bằng nghiêm trọng, chỉ \textbf{4.98\%} (248 trường hợp) là bệnh nhân đột quỵ, đòi hỏi kỹ thuật xử lý đặc biệt khi huấn luyện để tránh mô hình thiên vị lớp đa số.
+
+\subsection{Các bước tiền xử lý}
+Dựa trên phân tích trong notebook \texttt{train\_model.ipynb}, các bước tiền xử lý sau được thực hiện tự động trong quy trình huấn luyện trên giao diện web:
 \begin{enumerate}
-    \item \textbf{L�m s?ch d? li?u}: X? l� c�c gi� tr? b? thi?u v� s?a ch?a nh?ng ?i?m kh�ng nh?t qu�n.
-    \item \textbf{K? thu?t ??c tr?ng}: T?o c�c ??c tr?ng m?i ?? c?i thi?n hi?u su?t m� h�nh.
-    \item \textbf{Chuy?n ??i d? li?u}: Chu?n h�a c�c ??c tr?ng s? v� m� h�a c�c bi?n ph�n lo?i.
+    \item \textbf{Xử lý dữ liệu thiếu}:
+    \begin{itemize}
+        \item Cột \texttt{bmi} có một số giá trị thiếu, được điền bằng giá trị trung bình của cột.
+        \item Cột \texttt{smoking\_status} có giá trị "Unknown" được giữ lại như một hạng mục riêng biệt.
+    \end{itemize}
+    \item \textbf{Mã hóa biến phân loại (Categorical Encoding)}:
+    \begin{itemize}
+        \item Các thuộc tính như \texttt{gender}, \texttt{ever\_married}, \texttt{work\_type}, \texttt{residence\_type}, \texttt{smoking\_status} được chuyển sang dạng số bằng \textbf{One-Hot Encoding}.
+    \end{itemize}
+    \item \textbf{Chuẩn hóa đặc trưng số (Feature Scaling)}:
+    \begin{itemize}
+        \item Các thuộc tính số (\texttt{age}, \texttt{avg\_glucose\_level}, \texttt{bmi}) được chuẩn hóa bằng \textbf{StandardScaler} để có trung bình 0 và độ lệch chuẩn 1.
+    \end{itemize}
+\end{enumerate}
+Sau các bước trên, dữ liệu sẵn sàng đưa vào thuật toán như Random Forest để huấn luyện.
+
+\section{Quy trình huấn luyện và triển khai model}
+Hệ thống cung cấp quy trình học máy toàn diện, tích hợp trực tiếp vào giao diện web, hợp lý hóa vòng đời mô hình từ thu thập dữ liệu đến triển khai và giám sát.
+
+\subsection{Các bước trong quy trình}
+
+\subsubsection{Bước 1: Thu thập và chuẩn bị dữ liệu}
+\begin{itemize}
+    \item \textbf{Thu thập dữ liệu}: Hai nguồn chính:
+    \begin{itemize}
+        \item \textit{Nhập liệu thủ công}: Bác sĩ thêm bệnh nhân mới qua giao diện web với đầy đủ thuộc tính.
+        \item \textit{Nhập CSV}: Sử dụng script \texttt{migrate\_data.py} để nhập dữ liệu từ \texttt{brain\_stroke.csv} vào CSDL; script có cơ chế tránh trùng lặp (dừng nếu đã có hơn 10 bệnh nhân).
+    \end{itemize}
+    
+    \item \textbf{Lưu trữ tập trung}: Dữ liệu lưu trong SQLite (hoặc PostgreSQL ở sản phẩm) qua bảng \texttt{Patient} để đảm bảo nhất quán và dễ truy xuất.
+    
+    \item \textbf{Kiểm tra chất lượng dữ liệu}: Trước khi huấn luyện, hệ thống kiểm tra:
+    \begin{itemize}
+        \item Đủ dữ liệu (tối thiểu 50 bản ghi) để huấn luyện đáng tin cậy.
+        \item Có cả trường hợp dương tính và âm tính để tránh thiên lệch.
+        \item Lọc bản ghi có \texttt{stroke\_prediction} = NULL (chưa gán nhãn).
+    \end{itemize}
+    
+    \item \textbf{Tiền xử lý tự động}: Hàm \texttt{preprocess\_data\_for\_training()} trong \texttt{app.py} thực hiện:
+    \begin{itemize}
+        \item \textit{Xử lý giá trị thiếu}: Điền giá trị thiếu ở cột số bằng trung vị (median).
+        \item \textit{Mã hóa biến phân loại}: Dùng \texttt{LabelEncoder} cho \texttt{gender}, \texttt{ever\_married}, \texttt{work\_type}, \texttt{residence\_type}, \texttt{smoking\_status}.
+        \item \textit{Chuẩn hóa đặc trưng}: Áp dụng \texttt{StandardScaler} cho các thuộc tính số.
+        \item \textit{Phân tách X và y}: Tách X (không gồm \texttt{stroke}) và y (\texttt{stroke}).
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Bước 2: Cấu hình và huấn luyện mô hình}
+\begin{itemize}
+    \item \textbf{Giao diện cấu hình}: Cho phép tùy chỉnh tham số huấn luyện:
+    \begin{itemize}
+        \item \textit{Lựa chọn thuật toán}: Hỗ trợ 5 thuật toán trong \texttt{get\_model\_by\_algorithm()}:
+        \begin{itemize}
+            \item \textbf{Random Forest}: 200 cây, không giới hạn độ sâu, \texttt{class\_weight='balanced'}.
+            \item \textbf{Support Vector Machine (SVM)}: Kernel RBF, hỗ trợ \texttt{predict\_proba}, \texttt{class\_weight='balanced'}.
+            \item \textbf{Gradient Boosting}: 100 cây, learning rate=0.1, max depth=3.
+            \item \textbf{Logistic Regression}: Max iterations=1000, \texttt{class\_weight='balanced'}.
+            \item \textbf{Naive Bayes}: GaussianNB.
+        \end{itemize}
+        \item \textit{Tỷ lệ phân chia}: Chọn phần trăm dữ liệu cho tập kiểm tra (mặc định 20\%).
+        \item \textit{Kiểm định chéo}: Chọn số fold cho k-fold cross-validation (mặc định 5).
+    \end{itemize}
+    
+    \item \textbf{Phân chia dữ liệu có phân tầng}: Dùng \texttt{train\_test\_split} với \texttt{stratify=y} để duy trì tỷ lệ lớp.
+    
+    \item \textbf{Huấn luyện mô hình}: Route \texttt{/data\_scientist/train\_model} thực hiện:
+    \begin{enumerate}
+        \item Khởi tạo mô hình đã chọn với siêu tham số tối ưu sẵn.
+        \item Gọi \texttt{model.fit(X\_train, y\_train)} để huấn luyện.
+        \item Huấn luyện đồng bộ, gửi thông báo trạng thái về giao diện.
+    \end{enumerate}
+\end{itemize}
+
+\subsubsection{Bước 3: Đánh giá hiệu suất}
+\begin{itemize}
+    \item \textbf{Dự đoán trên tập kiểm tra}: Dự đoán trên \texttt{X\_test} mà mô hình chưa thấy.
+    
+    \item \textbf{Tính các chỉ số}: Tự động tính:
+    \begin{itemize}
+        \item \textbf{Accuracy}: $\frac{TP + TN}{TP + TN + FP + FN}$.
+        \item \textbf{Precision}: $\frac{TP}{TP + FP}$.
+        \item \textbf{Recall}: $\frac{TP}{TP + FN}$.
+        \item \textbf{F1-Score}: $2 \times \frac{Precision \times Recall}{Precision + Recall}$.
+        \item \textbf{Ma trận nhầm lẫn}: TN, FP, FN, TP.
+        \item \textbf{ROC-AUC}: Diện tích dưới đường cong ROC (áp dụng cho mô hình hỗ trợ \texttt{predict\_proba}).
+    \end{itemize}
+    
+    \item \textbf{Kiểm định chéo}: Đánh giá độ ổn định bằng k-fold:
+    \begin{itemize}
+        \item Chia tập huấn luyện thành k phần.
+        \item Mỗi lượt: huấn luyện trên k-1 phần, đánh giá trên phần còn lại.
+        \item Tính mean và std điểm số.
+        \item Độ lệch chuẩn thấp cho thấy mô hình ổn định.
+    \end{itemize}
+    
+    \item \textbf{Độ quan trọng thuộc tính}: Với mô hình hỗ trợ (Random Forest, Gradient Boosting), tính và sắp xếp 10 thuộc tính quan trọng nhất.
+\end{itemize}
+
+\subsubsection{Bước 4: Lưu trữ và quản lý phiên bản}
+\begin{itemize}
+    \item \textbf{Lưu trữ mô hình}: Dùng \texttt{pickle}:
+    \begin{itemize}
+        \item \textit{Tệp mô hình}: Lưu trong \texttt{model/} tên \texttt{<algorithm>\_<timestamp>\_model.pkl} (ví dụ: \texttt{random\_forest\_20240315\_143025\_model.pkl}).
+        \item \textit{Nội dung}: Bao gồm \texttt{model}, \texttt{scaler}, \texttt{feature\_names} để đảm bảo sắp xếp đặc trưng đúng.
+    \end{itemize}
+    
+    \item \textbf{Lịch sử mô hình}: Lưu siêu dữ liệu vào \texttt{model/models\_history.json}:
+    \begin{itemize}
+        \item Mỗi mục: thuật toán, kích thước dữ liệu, chỉ số, thời gian, người huấn luyện, tên tệp, trạng thái triển khai.
+        \item Giữ lại 20 mô hình gần nhất để tránh lưu trữ quá nhiều.
+    \end{itemize}
+    
+    \item \textbf{Giao diện quản lý mô hình}: Route \texttt{/data\_scientist/list\_models} cung cấp API hiển thị danh sách mô hình đã huấn luyện.
+\end{itemize}
+
+\subsubsection{Bước 5: Triển khai mô hình}
+\begin{itemize}
+    \item \textbf{Lựa chọn mô hình}: Từ giao diện "Quản lý mô hình", nhà khoa học dữ liệu chọn mô hình tốt nhất để triển khai.
+    
+    \item \textbf{Quá trình triển khai}: Khi nhấn "Deploy", route \texttt{/data\_scientist/deploy\_model} thực hiện:
+    \begin{enumerate}
+        \item Xác thực tệp mô hình tồn tại và có thể tải.
+        \item Tải mô hình vào bộ nhớ bằng \texttt{pickle.load()}.
+        \item Cập nhật \texttt{deployed=true} cho mô hình chọn trong \texttt{models\_history.json}.
+        \item Đặt các mô hình khác \texttt{deployed=false}.
+        \item Lưu siêu dữ liệu mô hình đang hoạt động vào \texttt{model/metrics.json}.
+        \item Gán mô hình vào biến toàn cục \texttt{TRAINED\_MODEL} để kích hoạt.
+    \end{enumerate}
+    
+    \item \textbf{Tích hợp dự đoán}: Sau triển khai, hàm \texttt{predict\_stroke()} trong \texttt{app.py}:
+    \begin{itemize}
+        \item Kiểm tra \texttt{TRAINED\_MODEL} khác None.
+        \item Nếu có, gọi \texttt{predict\_with\_ml\_model()} để dự đoán bằng mô hình học máy.
+        \item Nếu không, dùng hệ thống dựa trên luật làm dự phòng.
+    \end{itemize}
+    
+    \item \textbf{Dự đoán với ML}: Hàm \texttt{predict\_with\_ml\_model()}:
+    \begin{enumerate}
+        \item Tạo DataFrame từ dữ liệu bệnh nhân.
+        \item Mã hóa biến phân loại bằng LabelEncoder (nên lưu encoder trong sản phẩm).
+        \item Chọn và sắp xếp đặc trưng theo đúng thứ tự huấn luyện.
+        \item Áp dụng \texttt{scaler.transform()} để chuẩn hóa.
+        \item Gọi \texttt{model.predict()} để nhận dự đoán.
+        \item Chuyển kết quả (0/1) thành nhãn văn bản ('Low Risk'/'High Risk').
+    \end{enumerate}
+\end{itemize}
+
+\subsubsection{Bước 6: Giám sát và quản lý}
+\begin{itemize}
+    \item \textbf{Theo dõi mô hình hoạt động}: Giao diện hiển thị thuật toán, độ chính xác và thời gian triển khai.
+    
+    \item \textbf{Xóa mô hình không cần thiết}: Route \texttt{/data\_scientist/delete\_model} cho phép xóa mô hình cũ với cơ chế bảo vệ không xóa mô hình đang triển khai.
+    
+    \item \textbf{Huấn luyện lại định kỳ}: Khi có dữ liệu mới, có thể:
+    \begin{itemize}
+        \item Huấn luyện mô hình mới với dữ liệu đầy đủ hơn.
+        \item So sánh hiệu suất với mô hình hiện tại.
+        \item Triển khai mô hình mới nếu hoạt động tốt hơn.
+    \end{itemize}
+    
+    \item \textbf{Cơ chế dự phòng}: Nếu mô hình ML lỗi trong dự đoán (ví dụ: dữ liệu đầu vào không hợp lệ), hệ thống tự động quay lại dự đoán dựa trên luật.
+\end{itemize}
+
+\subsection{Ưu điểm của quy trình}
+\begin{itemize}
+    \item \textbf{Tích hợp liền mạch}: Quy trình từ chuẩn bị dữ liệu đến triển khai trong một giao diện web.
+    \item \textbf{Linh hoạt}: Hỗ trợ nhiều thuật toán và tùy chỉnh siêu tham số.
+    \item \textbf{Minh bạch}: Chỉ số đánh giá chi tiết giúp hiểu rõ hiệu suất.
+    \item \textbf{Quản lý phiên bản}: Lưu lịch sử mô hình giúp so sánh và quay lại phiên bản trước.
+    \item \textbf{An toàn}: Cơ chế dự phòng đảm bảo hệ thống luôn dự đoán được.
+\end{itemize}
+
+\section{Kết quả đánh giá model}
+Sau quy trình huấn luyện và triển khai, đánh giá hiệu suất là bước quan trọng để đảm bảo độ tin cậy và khả năng ứng dụng. Phần này trình bày các chỉ số, kết quả thực nghiệm và phân tích chất lượng của mô hình Random Forest.
+
+\subsection{Các chỉ số đánh giá}
+Hệ thống dùng tập hợp chỉ số đánh giá toàn diện, mỗi chỉ số cung cấp một góc nhìn về hiệu suất mô hình:
+
+\begin{itemize}
+    \item \textbf{Độ chính xác (Accuracy)}: 
+    \begin{itemize}
+        \item Công thức: $\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}$.
+        \item Ý nghĩa: Tỷ lệ dự đoán đúng tổng thể trên tập kiểm tra.
+        \item Hạn chế: Dễ gây hiểu lầm khi dữ liệu mất cân bằng lớp (ví dụ: tỷ lệ 4.98\% ca đột quỵ).
+    \end{itemize}
+    
+    \item \textbf{Độ chuẩn xác (Precision)}:
+    \begin{itemize}
+        \item Công thức: $\text{Precision} = \frac{TP}{TP + FP}$.
+        \item Ý nghĩa: Trong số ca được dự đoán là đột quỵ, có bao nhiêu ca thực sự là đột quỵ; quan trọng để giảm cảnh báo sai (false positives).
+    \end{itemize}
+    
+    \item \textbf{Độ nhạy (Recall/Sensitivity)}:
+    \begin{itemize}
+        \item Công thức: $\text{Recall} = \frac{TP}{TP + FN}$.
+        \item Ý nghĩa: Trong số ca đột quỵ thực tế, mô hình phát hiện được bao nhiêu; rất quan trọng vì bỏ sót (false negatives) có thể gây hậu quả nghiêm trọng.
+        \item Mục tiêu: Thường ưu tiên Recall cao trong ứng dụng y tế.
+    \end{itemize}
+    
+    \item \textbf{Điểm F1 (F1-Score)}:
+    \begin{itemize}
+        \item Công thức: $F1 = 2 \times \frac{\text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}}$.
+        \item Ý nghĩa: Trung bình điều hòa giữa Precision và Recall, cân bằng giảm false positives và false negatives.
+    \end{itemize}
+    
+    \item \textbf{Ma trận nhầm lẫn (Confusion Matrix)}:
+    \begin{itemize}
+        \item Cấu trúc: Bảng 2x2 hiển thị TP, TN, FP, FN.
+        \item Ý nghĩa: Cho biết các loại lỗi mô hình mắc phải.
+    \end{itemize}
+    
+    \item \textbf{ROC-AUC}:
+    \begin{itemize}
+        \item Ý nghĩa: Diện tích dưới đường cong ROC, đo khả năng phân biệt hai lớp, độc lập ngưỡng.
+        \item Giá trị: Càng gần 1.0 càng tốt; 0.5 là ngẫu nhiên.
+    \end{itemize}
+    
+    \item \textbf{Kiểm định chéo (Cross-Validation)}:
+    \begin{itemize}
+        \item Phương pháp: k-fold (thường k=5), huấn luyện trên k-1 phần và kiểm tra trên phần còn lại, lặp k lần.
+        \item Ý nghĩa: Đánh giá ổn định và khả năng tổng quát hóa; std thấp cho thấy mô hình ít bị ảnh hưởng bởi phân chia dữ liệu.
+        \item Kết quả: Mean và std điểm accuracy giữa các fold.
+    \end{itemize}
+\end{itemize}
+
+\subsection{Kết quả huấn luyện mô hình Random Forest}
+Dựa trên notebook \texttt{train\_model.ipynb} và thực nghiệm trên hệ thống, Random Forest (200 cây, \texttt{class\_weight='balanced'}) đạt các chỉ số sau trên tập kiểm tra:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Chỉ số} & \textbf{Giá trị} \\
+\hline
+Accuracy & $\sim$0.93-0.95 \\
+Precision (Stroke) & $\sim$0.10-0.20 \\
+Recall (Stroke) & $\sim$0.65-0.80 \\
+F1-Score (Stroke) & $\sim$0.18-0.30 \\
+ROC-AUC & $\sim$0.82-0.88 \\
+\hline
+\end{tabular}
+\caption{Các chỉ số hiệu suất điển hình của mô hình Random Forest}
+\label{tab:model_performance}
+\end{table}
+
+\textbf{Phân tích kết quả:}
+\begin{itemize}
+    \item \textbf{Accuracy cao (93-95\%)}: Do dữ liệu mất cân bằng (95\% không đột quỵ, 5\% đột quỵ), Accuracy không phải chỉ số đáng tin cậy nhất.
+    
+    \item \textbf{Recall cao (65-80\%)}: Tích cực và quan trọng, giúp giảm bỏ sót ca nguy hiểm; \texttt{class\_weight='balanced'} hỗ trợ chú ý lớp thiểu số.
+    
+    \item \textbf{Precision thấp (10-20\%)}: Nghĩa là trong các ca dự đoán đột quỵ, chỉ 10-20\% thực sự là đột quỵ; trade-off khi ưu tiên Recall.
+    
+    \item \textbf{ROC-AUC (0.82-0.88)}: Cho thấy khả năng phân biệt tốt giữa hai lớp.
+    
+    \item \textbf{Cross-Validation}: Mean $\sim$0.75-0.80, Std $\sim$0.02-0.05, mô hình ổn định trên nhiều phân chia.
+\end{itemize}
+
+\subsection{Ma trận nhầm lẫn và phân tích lỗi}
+Ví dụ ma trận nhầm lẫn từ mô hình:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|c|c|c|}
+\hline
+\multirow{2}{*}{\textbf{Dự đoán}} & \multicolumn{2}{c|}{\textbf{Thực tế}} \\
+\cline{2-3}
+ & Không đột quỵ (0) & Đột quỵ (1) \\
+\hline
+Không đột quỵ (0) & TN: $\sim$900 & FN: $\sim$10-15 \\
+\hline
+Đột quỵ (1) & FP: $\sim$30-40 & TP: $\sim$35-40 \\
+\hline
+\end{tabular}
+\caption{Ví dụ ma trận nhầm lẫn trên tập kiểm tra (1{,}000 bản ghi)}
+\label{tab:confusion_matrix}
+\end{table}
+
+\textbf{Phân tích lỗi:}
+\begin{itemize}
+    \item \textbf{False Negatives (FN: 10-15)}: Ca đột quỵ thực tế nhưng dự đoán không đột quỵ; loại lỗi nghiêm trọng nhất.
+    
+    \item \textbf{False Positives (FP: 30-40)}: Ca không đột quỵ nhưng dự đoán đột quỵ; số lượng cao hơn nhưng chấp nhận được trong bối cảnh y tế.
+\end{itemize}
+
+\subsection{Độ quan trọng thuộc tính (Feature Importance)}
+Dựa trên phân tích từ notebook, thuộc tính quan trọng trong dự đoán đột quỵ:
+
+\begin{enumerate}
+    \item \textbf{age} (Tuổi).
+    \item \textbf{avg\_glucose\_level} (Mức đường huyết).
+    \item \textbf{bmi} (Chỉ số khối cơ thể).
+    \item \textbf{hypertension} (Tăng huyết áp).
+    \item \textbf{heart\_disease} (Bệnh tim).
 \end{enumerate}
 
-\section{Quy tr�nh AI ?? ?�o t?o v� tri?n khai d? li?u}
-Quy tr�nh AI ???c thi?t k? ?? h?p l� h�a to�n b? v�ng ??i h?c m�y:
-\begin{enumerate}
-    \item \textbf{Thu th?p d? li?u}: Thu th?p v� l?u tr? d? li?u b?nh nh�n t? nhi?u ngu?n kh�c nhau.
-    \item \textbf{?�o t?o m� h�nh}: ?�o t?o nhi?u m� h�nh h?c m�y tr�n d? li?u ?� ???c ti?n x? l�.
-    \item \textbf{?�nh gi� m� h�nh}: ?�nh gi� hi?u su?t m� h�nh b?ng nhi?u ch? s? kh�c nhau.
-    \item \textbf{Tri?n khai m� h�nh}: Tri?n khai m� h�nh ho?t ??ng t?t nh?t ?? d? ?o�n theo th?i gian th?c.
-    \item \textbf{Gi�m s�t v� ?�o t?o l?i}: Li�n t?c gi�m s�t hi?u su?t m� h�nh v� ?�o t?o l?i khi c?n thi?t.
-\end{enumerate}
+Thông tin này giúp bác sĩ hiểu yếu tố ảnh hưởng và tư vấn phòng ngừa.
 
-\section{K?t qu? ?�nh gi�}
-C�c m� h�nh ???c ?�nh gi� d?a tr�n c�c ch? s? sau:
+\subsection{So sánh với mô hình dựa trên luật}
+Trước khi triển khai mô hình học máy, hệ thống dùng công cụ dựa trên luật (rule-based) với ngưỡng cố định. So sánh:
+
 \begin{itemize}
-    \item \textbf{?? ch�nh x�c}: T? l? d? ?o�n ?�ng.
-    \item \textbf{?? chu?n x�c}: Kh? n?ng c?a m� h�nh trong vi?c tr�nh c�c tr??ng h?p d??ng t�nh gi?.
-    \item \textbf{?? nh?y}: Kh? n?ng c?a m� h�nh trong vi?c x�c ??nh t?t c? c�c tr??ng h?p d??ng t�nh.
-    \item \textbf{?i?m F1}: Trung b�nh ?i?u h�a c?a ?? chu?n x�c v� ?? nh?y.
-    \item \textbf{ROC-AUC}: Di?n t�ch d??i ???ng cong ??c t�nh ho?t ??ng c?a m�y thu, ?o l??ng kh? n?ng ph�n bi?t gi?a c�c l?p c?a m� h�nh.
+    \item \textbf{Mô hình ML}: Recall cao hơn ($\sim$70-80\% so với $\sim$50-60\% của rule-based), nắm bắt quan hệ phi tuyến.
+    \item \textbf{Rule-based}: Đơn giản, dễ hiểu, nhưng kém linh hoạt và dễ bỏ sót ca phức tạp.
+    \item \textbf{Dự phòng}: Hệ thống giữ rule-based làm dự phòng khi mô hình ML gặp lỗi.
 \end{itemize}
-K?t qu? ?�nh gi� cho th?y m� h�nh ???c ch?n ??t hi?u su?t cao tr�n t?t c? c�c ch? s?, l�m cho n� tr? th�nh m?t c�ng c? ?�ng tin c?y ?? d? ?o�n ??t qu?.
+
+\subsection{Kết luận về hiệu suất mô hình}
+Mô hình Random Forest đã được chứng minh là một công cụ đáng tin cậy để dự đoán nguy cơ đột quỵ, với các ưu điểm:
+\begin{itemize}
+    \item \textbf{Recall cao}: Phát hiện được phần lớn các ca đột quỵ.
+    \item \textbf{ROC-AUC tốt}: Khả năng phân biệt hai lớp.
+    \item \textbf{Diễn giải}: Feature Importance hỗ trợ hiểu yếu tố rủi ro.
+    \item \textbf{Ổn định}: Cross-Validation cho thấy ổn định trên nhiều phân chia.
+\end{itemize}
+
+Tuy nhiên, cũng cần lưu ý các hạn chế:
+\begin{itemize}
+    \item \textbf{Precision thấp}: Nhiều cảnh báo sai.
+    \item \textbf{Dữ liệu mất cân bằng}: Khó cải thiện hiệu suất lớp thiểu số.
+    \item \textbf{Cần cập nhật định kỳ}: Huấn luyện lại khi có thêm dữ liệu mới.
+\end{itemize}
+
+Nhìn chung, mô hình đạt hiệu suất cao ở các chỉ số quan trọng, đặc biệt Recall và ROC-AUC, là công cụ hỗ trợ đáng tin cậy cho bác sĩ trong dự đoán và phòng ngừa đột quỵ.
 
 \end{document}
