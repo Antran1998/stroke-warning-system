@@ -447,9 +447,52 @@ Hệ thống cung cấp quy trình học máy toàn diện, tích hợp trực t
     \item \textbf{Quản lý phiên bản}: Lưu lịch sử mô hình giúp so sánh và quay lại phiên bản trước.
     \item \textbf{An toàn}: Cơ chế dự phòng đảm bảo hệ thống luôn dự đoán được.
 \end{itemize}
+ 
+\section{Lý thuyết về thuật toán}
+Phần này tóm tắt lý thuyết và đặc điểm chính của các thuật toán được sử dụng trong hệ thống: Random Forest, Support Vector Machine (SVM), Naive Bayes và Logistic Regression. Mục tiêu là giải thích vì sao các thuật toán này được chọn và cách chúng ứng xử trên dữ liệu y tế mất cân bằng.
+
+\subsection*{Random Forest}
+Random Forest là một phương pháp ensemble dựa trên tập hợp nhiều cây quyết định (decision trees). Mỗi cây được huấn luyện trên một mẫu bootstrap của dữ liệu và chọn đặc trưng ngẫu nhiên khi phân nhánh, giúp giảm phương sai và tránh overfitting so với một cây đơn lẻ. Random Forest cung cấp:\
+\begin{itemize}
+    \item \textbf{Ưu điểm}: mạnh mẽ với dữ liệu có quan hệ phi tuyến, ít cần tiền xử lý, cho feature importance hữu ích để giải thích mô hình; có thể xử lý tương đối tốt các biến mất dữ liệu bằng cách sử dụng tham số và cơ chế ensemble.\
+    \item \textbf{Nhược điểm}: mô hình nặng hơn một mô hình tuyến tính, khó diễn giải chi tiết từng quyết định, và có thể chậm khi số cây lớn.\
+    \item \textbf{Trong dữ liệu mất cân bằng}: sử dụng \texttt{class\_weight='balanced'} hoặc oversampling/undersampling giúp cải thiện khả năng phát hiện lớp thiểu số (tăng recall).
+\end{itemize}
+
+\subsection*{Support Vector Machine (SVM)}
+SVM tìm siêu phẳng phân tách tối ưu giữa hai lớp bằng cách tối đa hóa lề (margin). Kernel (ví dụ RBF) cho phép SVM học các biên phân cách phi tuyến.\
+\begin{itemize}
+    \item \textbf{Ưu điểm}: hoạt động tốt trên không gian đặc trưng có chiều cao/ thấp tuỳ biến kernel; hiệu quả với số lượng mẫu vừa phải.\
+    \item \textbf{Nhược điểm}: không trực tiếp cung cấp xác suất trừ khi bật `probability=True` (tốn kém về tính toán), nhạy cảm với lựa chọn kernel và siêu tham số, có thể chậm với bộ dữ liệu lớn.\
+    \item \textbf{Trong dữ liệu mất cân bằng}: SVM cho phép cân bằng lớp bằng tham số \texttt{class\_weight}; tuy nhiên hiệu năng thực tế phụ thuộc vào điều chỉnh ngưỡng và kernel.
+\end{itemize}
+
+\subsection*{Naive Bayes (GaussianNB)}
+Naive Bayes giả định các thuộc tính độc lập có điều kiện và ước lượng xác suất bằng cách áp dụng định lý Bayes. GaussianNB phù hợp cho các feature liên tục giả định phân phối chuẩn.\
+\begin{itemize}
+    \item \textbf{Ưu điểm}: rất nhanh, ít tốn tài nguyên, ít cần điều chỉnh tham số.\
+    \item \textbf{Nhược điểm}: giả định độc lập có thể không đúng trong nhiều bài toán thực tế, làm giảm hiệu năng; phân phối Gaussian có thể không phù hợp với một số biến.\
+    \item \textbf{Trong dữ liệu mất cân bằng}: Naive Bayes có thể tỏ ra kém hơn các mô hình phức tạp trong việc tối ưu recall cho lớp thiểu số; cần điều chỉnh ngưỡng hoặc sử dụng trọng số lớp.
+\end{itemize}
+
+\subsection*{Logistic Regression}
+Logistic Regression là một mô hình tuyến tính dự đoán xác suất bằng hàm logistic. Dễ triển khai, giải thích và hiệu quả khi mối quan hệ giữa đặc trưng và log-odds là tuyến tính.\
+\begin{itemize}
+    \item \textbf{Ưu điểm}: mô hình đơn giản, dễ hiểu, chi phí tính toán thấp, thích hợp làm baseline.\
+    \item \textbf{Nhược điểm}: hạn chế khi dữ liệu có quan hệ phi tuyến phức tạp; cần tiền xử lý (mã hóa, chuẩn hoá).\
+    \item \textbf{Trong dữ liệu mất cân bằng}: có thể sử dụng \texttt{class\_weight='balanced'} hoặc điều chỉnh ngưỡng quyết định để cải thiện recall.
+\end{itemize}
+
+\subsection*{Lưu ý chung về dữ liệu y tế mất cân bằng}
+Trong bài toán phát hiện đột quỵ (stroke) lớp dương rất hiếm (~5\%), do đó:\
+\begin{itemize}
+    \item \textbf{Ưu tiên Recall}: trong ứng dụng y tế, bỏ sót ca thật (false negative) có hậu quả nặng hơn cảnh báo sai (false positive), do đó các chiến lược tối ưu hóa recall (tuning ngưỡng, class weights, oversampling) thường được áp dụng.\
+    \item \textbf{Đánh giá toàn diện}: ngoài accuracy cần báo các chỉ số precision, recall, F1, ROC-AUC và ma trận nhầm lẫn để hiểu loại lỗi.\
+    \item \textbf{Giải thích}: Random Forest cung cấp feature importance hữu ích để hỗ trợ chuyên gia y tế.
+\end{itemize}
 
 \section{Kết quả đánh giá model}
-Sau quy trình huấn luyện và triển khai, đánh giá hiệu suất là bước quan trọng để đảm bảo độ tin cậy và khả năng ứng dụng. Phần này trình bày các chỉ số, kết quả thực nghiệm và phân tích chất lượng của mô hình Random Forest.
+Sau quy trình huấn luyện và triển khai, phần này trình bày kết quả đánh giá tổng hợp cho bốn mô hình đã so sánh (Random Forest, SVM, Naive Bayes, Logistic Regression). Nội dung tóm tắt dựa trên thực thi trong notebook `train_model.ipynb` (mã huấn luyện nhiều mô hình), kết hợp phân tích về độ ổn định (cross-validation) và trực quan hoá (ROC, confusion matrix).
 
 \subsection{Các chỉ số đánh giá}
 Hệ thống dùng tập hợp chỉ số đánh giá toàn diện, mỗi chỉ số cung cấp một góc nhìn về hiệu suất mô hình:
