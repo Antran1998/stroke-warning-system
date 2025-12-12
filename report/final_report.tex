@@ -20,8 +20,6 @@
         \centering
         {\Huge Báo cáo cuối kỳ: Hệ thống cảnh báo đột quỵ\par}
         \vspace{0.5em}
-        {\small \href{https://drive.google.com/drive/folders/1Bn8Um9vw-dDUeCo_37HelStKR6YpFzHz?usp=sharing}{Source code}\par}
-
         \vspace{2cm}
 
         \begin{flushright}
@@ -41,9 +39,17 @@
     \end{titlepage}
 
 \newpage
-\makeindex
+\tableofcontents
 \newpage
 
+\section{Mã nguồn và tập dữ liệu của nhóm}
+\href{https://drive.google.com/drive/folders/1Bn8Um9vw-dDUeCo_37HelStKR6YpFzHz?usp=sharing}{Mã nguồn ở đây.}
+\begin{itemize}
+    \item \textbf{Hướng dẫn cài đặt}: README.md.
+    \item \textbf{Dataset}: \texttt{brain\_stroke.csv.}
+    \item \textbf{Báo cáo}: \texttt{report/report.pdf.}
+    \item \textbf{Khám phá dữ liệu và đánh giá từng mô hình}: \texttt{report/train\_model.ipynb}.
+\end{itemize}
 \section{Nghiệp vụ của từng Stakeholder}
 \begin{figure}[H]
     \centering
@@ -975,5 +981,20 @@ Cross-Val Mean & 0.7400 \\
     \item \textbf{Ưu tiên 2}: Sử dụng \textbf{SVM} như mô hình dự phòng hoặc khi cần cân bằng giữa Precision và Recall.
     \item \textbf{Cải thiện Random Forest}: Áp dụng SMOTE hoặc điều chỉnh ngưỡng quyết định để tận dụng ROC-AUC tốt (0.8159).
     \item \textbf{Đánh giá liên tục}: Theo dõi hiệu suất trên dữ liệu thực tế và điều chỉnh mô hình theo feedback từ bác sĩ.
+\end{itemize}
+
+\section{Hướng phát triển trong tương lai}
+\begin{itemize}
+    \item \textbf{Chiến lược xử lý mất cân bằng nâng cao}: Áp dụng SMOTE/ADASYN, undersampling có kiểm soát, và mô hình chi phí-độ nhạy (cost-sensitive learning) phù hợp bối cảnh lâm sàng.
+    \item \textbf{Hiệu chỉnh ngưỡng theo ngữ cảnh}: Tối ưu ngưỡng quyết định theo mục tiêu Recall/Precision từng khoa/phòng; triển khai threshold động dựa trên tải bệnh viện hoặc nhóm nguy cơ.
+    \item \textbf{Giải thích mô hình}: Tích hợp SHAP/LIME, hiển thị feature contributions ở cấp bệnh nhân; cung cấp báo cáo quyết định dễ hiểu cho bác sĩ.
+    \item \textbf{Hiệu chỉnh xác suất (Calibration)}: Platt/Isotonic calibration để cải thiện độ tin cậy xác suất; đánh giá Brier score và calibration curve định kỳ.
+    \item \textbf{Giám sát và phát hiện drift}: Theo dõi dữ liệu và hiệu suất (data/model drift), cảnh báo suy giảm, tự động đề xuất huấn luyện lại.
+    \item \textbf{MLOps và phiên bản hóa}: Hoàn thiện pipeline CI/CD, tracking thí nghiệm, quản lý phiên bản mô hình/feature/encoder, rollback an toàn.
+    \item \textbf{Bảo mật và quyền riêng tư}: Ẩn danh dữ liệu, tuân thủ quy định (HIPAA/GDPR tương đương), mã hóa ở trạng thái nghỉ và khi truyền; audit trails chi tiết.
+    \item \textbf{Tích hợp hệ thống bệnh viện}: Kết nối HL7/FHIR, tương tác EMR/EHR; đồng bộ dữ liệu hai chiều và quản lý phân quyền theo vai trò.
+    \item \textbf{Thông báo đa kênh}: Ứng dụng di động/web push/SMS cho cảnh báo khẩn; cấu hình mức độ ưu tiên và quy trình xử lý sự kiện.
+    \item \textbf{Thử nghiệm lâm sàng và A/B}: Đánh giá có kiểm soát trong môi trường thực; đo lường tác động đến quy trình, thời gian đáp ứng và kết cục bệnh nhân.
+    \item \textbf{Hỗ trợ ensemble và meta-learning}: Kết hợp nhiều mô hình (stacking/blending) để nâng Recall, ổn định hiệu suất.
 \end{itemize}
 \end{document}
