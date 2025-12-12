@@ -8,7 +8,7 @@ A Flask-based web application for managing patient records and predicting stroke
 - Optional: virtual environment tool (`venv`)
 
 ## Quick Start
-1. Clone the repository
+1. Clone the repository (Optional if you already have the source code)
    - `git clone https://github.com/Antran1998/stroke-warning-system`
    - `cd stroke-warning-system`
 
@@ -87,10 +87,6 @@ Expected CSV columns:
 - If you see "Error: 'brain_stroke.csv' not found" when migrating, ensure the file is in the repo root.
 - If the app cannot find the DB, check `FLASK_CONFIG` and the `*_DATABASE_URL` environment variables.
 - Port conflicts: change port in `app.py` (`app.run(..., port=5000)`).
-
-## Security Notes
-- Default credentials are for local testing only. Change `SECRET_KEY` and user passwords for production.
-- Consider HTTPS and a production-grade server (e.g., gunicorn) for deployment.
 
 ## License
 - This project is for educational purposes. Add a license if you intend to distribute.
